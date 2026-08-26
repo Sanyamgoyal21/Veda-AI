@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+
+# Env files
+.env
+.env.local
+*.env
+!*.env.example
+
+# Build output
+frontend/dist/
+frontend/build/
+
+# Uploads (temporary student files - never committed)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
