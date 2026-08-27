@@ -24,6 +24,7 @@ function buildSummary(assessment) {
     summary.totalScore = grading.total_score;
     summary.totalMaxScore = grading.total_max_score;
     summary.percentage = grading.percentage;
+    summary.mismatchesSuspected = (grading.grades || []).filter((g) => g.mismatch_suspected).length;
   }
 
   return summary;

@@ -9,8 +9,11 @@ from app.services import vision_service
 
 _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 
+# Mirrors grading_prompt's own fallback when a question has no printed marks.
+DEFAULT_MAX_SCORE = 5
 
-def _parse_grade_response(raw_text: str, question_number: str) -> GradeResult:
+
+def _parse_grade_response(raw_text: str, question_number: str, fallback_max_score: float) -> GradeResult:
     match = _JSON_RE.search(raw_text)
     if not match:
         return GradeResult(
@@ -25,12 +28,18 @@ def _parse_grade_response(raw_text: str, question_number: str) -> GradeResult:
             feedback="AI grading response could not be parsed.",
         )
 
+    mismatch = bool(data.get("mismatch_suspected"))
+    max_score = data.get("max_score") or fallback_max_score
+
     return GradeResult(
         question_number=question_number,
-        score=data.get("score"),
-        max_score=data.get("max_score"),
-        correct=data.get("correct"),
+        # Don't trust the model's own score for a flagged mismatch - a
+        # different-topic answer is worth 0 regardless of what it reasoned.
+        score=0 if mismatch else data.get("score"),
+        max_score=max_score,
+        correct=False if mismatch else data.get("correct"),
         feedback=data.get("feedback", ""),
+        mismatch_suspected=mismatch,
     )
 
 
@@ -38,6 +47,21 @@ def run(mappings: list[Mapping]) -> GradingResult:
     grades: list[GradeResult] = []
 
     gradable = [m for m in mappings if m.question and m.answer]
+    unanswered = [m for m in mappings if m.question and not m.answer]
+
+    # A question with no matching answer was not attempted - that's a 0, not
+    # a question left out of the total. No AI call needed: there is no
+    # answer text to evaluate, so the score is deterministic.
+    for mapping in unanswered:
+        grades.append(
+            GradeResult(
+                question_number=mapping.question.number,
+                score=0,
+                max_score=mapping.question.marks or DEFAULT_MAX_SCORE,
+                correct=False,
+                feedback="Not attempted - no matching answer was found on the answer sheet.",
+            )
+        )
 
     for mapping in gradable:
         try:
@@ -47,7 +71,8 @@ def run(mappings: list[Mapping]) -> GradingResult:
                     mapping.question.text, mapping.answer.text, mapping.question.marks
                 ),
             )
-            grades.append(_parse_grade_response(raw_text, mapping.question.number))
+            fallback_max_score = mapping.question.marks or DEFAULT_MAX_SCORE
+            grades.append(_parse_grade_response(raw_text, mapping.question.number, fallback_max_score))
         except vision_service.VisionServiceError as exc:
             grades.append(
                 GradeResult(

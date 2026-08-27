@@ -37,6 +37,10 @@ class GradeResult(BaseModel):
     max_score: Optional[float] = None
     feedback: str
     correct: Optional[bool] = None
+    # True when the grader judged the matched answer to be addressing a
+    # different question entirely (likely mislabeled during extraction),
+    # rather than merely an incorrect attempt at this one.
+    mismatch_suspected: bool = False
 
 
 class GradingResult(BaseModel):

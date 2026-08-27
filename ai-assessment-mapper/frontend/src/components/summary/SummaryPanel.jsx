@@ -25,6 +25,9 @@ export default function SummaryPanel({ summary, onGrade, grading, hasGrading }) 
             className="text-brand-orange"
           />
         )}
+        {hasGrading && summary.mismatchesSuspected > 0 && (
+          <Stat value={summary.mismatchesSuspected} label="Possible mismatches" className="text-amber-600" />
+        )}
       </div>
 
       <button

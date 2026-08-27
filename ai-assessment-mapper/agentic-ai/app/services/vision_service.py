@@ -76,6 +76,7 @@ def run_structured_extraction(
         response = client.chat.completions.create(
             model=AI_MODEL,
             max_tokens=max_tokens,
+            temperature=0,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": content},
@@ -114,6 +115,7 @@ def run_text_completion(*, system_prompt: str, user_prompt: str, max_tokens: int
         response = client.chat.completions.create(
             model=AI_MODEL,
             max_tokens=max_tokens,
+            temperature=0,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},

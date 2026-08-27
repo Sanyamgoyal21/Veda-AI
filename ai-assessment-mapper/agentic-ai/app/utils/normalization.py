@@ -1,15 +1,16 @@
 """
 Normalizes printed / handwritten question numbers so that variants like
-"Q11(a)", "11 (a)", "11-A", "11a" all resolve to the same canonical key.
+"Q11(a)", "11 (a)", "11-A", "11a", "26(ii)", "26-ii" all resolve to the same
+canonical key.
 
-Canonical form: "<number>" or "<number>(<letter>)", lowercase letter.
-Examples -> "11", "11(a)"
+Canonical form: "<number>" or "<number>(<letters>)", lowercase.
+Examples -> "11", "11(a)", "26(ii)"
 """
 import re
 
 _CLEAN_RE = re.compile(r"[\s._]+")
 _Q_PREFIX_RE = re.compile(r"^q\.?\s*", re.IGNORECASE)
-_PAREN_RE = re.compile(r"^(\d+)\s*[\(\-]?\s*([a-zA-Z]?)\)?$")
+_PAREN_RE = re.compile(r"^(\d+)\s*[\(\-]?\s*([a-zA-Z]*)\)?$")
 
 
 def normalize_question_number(raw: str) -> str:

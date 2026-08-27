@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import Badge from "../common/Badge.jsx";
 import AIFeedback from "../answer/AIFeedback.jsx";
 import AnswerStatusNote from "../answer/AnswerStatusNote.jsx";
@@ -9,6 +9,7 @@ export default function QuestionItem({ question, mapping, grade, isSelected, isE
   const matchLevel = mapping?.match_level;
   const hasScore = grade && grade.score !== null && grade.score !== undefined;
   const scoreGood = hasScore && grade.max_score ? grade.score / grade.max_score >= 0.5 : grade?.correct;
+  const mismatchSuspected = grade?.mismatch_suspected;
 
   return (
     <div
@@ -31,11 +32,16 @@ export default function QuestionItem({ question, mapping, grade, isSelected, isE
         </span>
 
         <span className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-ink">Q{question.number}</p>
+          <p className="text-sm font-semibold text-ink">{question.number}</p>
           <p className="text-sm text-gray-500 truncate">{question.text}</p>
         </span>
 
-        {hasScore ? (
+        {mismatchSuspected ? (
+          <Badge className="bg-amber-50 text-amber-700 gap-1">
+            <AlertTriangle size={11} />
+            Possible mismatch
+          </Badge>
+        ) : hasScore ? (
           <Badge className={scoreGood ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"}>
             {grade.score}/{grade.max_score}
           </Badge>
@@ -55,7 +61,7 @@ export default function QuestionItem({ question, mapping, grade, isSelected, isE
       {isExpanded && (
         <div className="px-4 pb-4">
           {grade ? (
-            <AIFeedback feedback={grade.feedback} />
+            <AIFeedback feedback={grade.feedback} mismatchSuspected={grade.mismatch_suspected} />
           ) : (
             <AnswerStatusNote matchLevel={matchLevel} answerText={mapping?.answer?.text} />
           )}

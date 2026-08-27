@@ -7,6 +7,15 @@ from app.schemas.answer_schema import Answer
 from app.schemas.assessment_schema import Mapping, ValidationResult
 from app.schemas.question_schema import Question
 
+# Deliberately no keyword/topic-overlap heuristic here: a tried version of
+# one flagged plenty of genuinely correct numeric answers (e.g. a probability
+# answer that's just "P = 6/36" shares no words with a question asking for
+# "the probability that..."). Judging whether an answer is actually on-topic
+# needs real language understanding, not token matching - that check lives in
+# grading_agent instead, where the model already reads both texts together
+# and can tell "wrong number, right topic" apart from "answering a different
+# question entirely".
+
 
 def run(
     questions: list[Question],

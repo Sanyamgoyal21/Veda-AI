@@ -5,11 +5,11 @@ from pydantic import ValidationError
 from app.prompts import answer_prompt
 from app.schemas.answer_schema import Answer, AnswerExtractionResult, AnswerRegion
 from app.services import vision_service
-from app.services.pdf_service import PageImage
+from app.services.pdf_service import PageImage, refine_text_region
 from app.utils.normalization import normalize_question_number
 
 
-def run(pages: list[PageImage]) -> AnswerExtractionResult:
+def run(pages: list[PageImage], file_path: str | None = None) -> AnswerExtractionResult:
     raw = vision_service.run_structured_extraction(
         system_prompt=answer_prompt.SYSTEM_PROMPT,
         user_prompt=answer_prompt.build_user_prompt(len(pages)),
@@ -25,6 +25,14 @@ def run(pages: list[PageImage]) -> AnswerExtractionResult:
     for item in raw.get("answers", []):
         regions: list[AnswerRegion] = []
         for raw_region in item.get("regions", []):
+            # Vision models guess pixel coordinates unreliably. When the
+            # source is a typed PDF (not a photographed scan), replace the
+            # guess with an exact bounding box found via real text search.
+            if file_path:
+                refined = refine_text_region(file_path, raw_region.get("page", 0), item.get("text", ""))
+                if refined:
+                    raw_region = refined
+
             try:
                 regions.append(AnswerRegion(**raw_region))
             except ValidationError as exc:

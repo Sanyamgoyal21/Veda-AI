@@ -4,6 +4,7 @@ import Sidebar from "../components/common/Sidebar.jsx";
 import Topbar from "../components/common/Topbar.jsx";
 import Spinner from "../components/common/Spinner.jsx";
 import SummaryPanel from "../components/summary/SummaryPanel.jsx";
+import ValidationWarnings from "../components/assessment/ValidationWarnings.jsx";
 import AssessmentLayout from "../components/assessment/AssessmentLayout.jsx";
 import QuestionList from "../components/question/QuestionList.jsx";
 import AnswerViewer from "../components/viewer/AnswerViewer.jsx";
@@ -94,6 +95,8 @@ export default function Assessment() {
             hasGrading={Boolean(assessment.grading)}
           />
 
+          <ValidationWarnings validation={assessment.validation} />
+
           <AssessmentLayout
             left={
               <QuestionList
@@ -112,7 +115,7 @@ export default function Assessment() {
                 fileMeta={assessment.files?.answerSheet}
                 activeKey={selectedKey}
                 regions={selectedMapping?.answer?.regions || []}
-                tag={questionLabel ? `Q${questionLabel}` : undefined}
+                tag={questionLabel}
                 tone={tone}
                 emptyMessage={
                   selectedMapping?.match_level === MATCH_LEVEL.UNANSWERED
