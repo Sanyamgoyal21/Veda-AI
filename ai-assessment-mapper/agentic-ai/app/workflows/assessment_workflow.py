@@ -20,7 +20,7 @@ from app.agents import (
     validation_agent,
 )
 from app.schemas.assessment_schema import AssessmentResult
-from app.services.pdf_service import load_document_pages
+from app.services.pdf_service import extract_full_text, load_document_pages
 
 
 def process_assessment(question_file_path: str, answer_file_path: str) -> AssessmentResult:
@@ -49,9 +49,27 @@ def process_assessment(question_file_path: str, answer_file_path: str) -> Assess
     )
 
 
-def grade_assessment(mappings_payload: list[dict]) -> dict:
+def grade_assessment(
+    mappings_payload: list[dict],
+    answer_file_path: str | None = None,
+    marking_scheme_file_path: str | None = None,
+) -> dict:
     from app.schemas.assessment_schema import Mapping
 
     mappings = [Mapping(**m) for m in mappings_payload]
-    result = grading_agent.run(mappings)
+
+    marking_scheme_text = None
+    marking_scheme_pages = None
+    if marking_scheme_file_path:
+        marking_scheme_text = extract_full_text(marking_scheme_file_path)
+        if not marking_scheme_text:
+            # No text layer (a scanned marking scheme) - fall back to images.
+            marking_scheme_pages = load_document_pages(marking_scheme_file_path)
+
+    result = grading_agent.run(
+        mappings,
+        answer_file_path=answer_file_path,
+        marking_scheme_text=marking_scheme_text,
+        marking_scheme_pages=marking_scheme_pages,
+    )
     return result.model_dump()

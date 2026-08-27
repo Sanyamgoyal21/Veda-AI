@@ -1,0 +1,25 @@
+{
+  "answers": [
+    {
+      "detected_question_number": "13",
+      "text": "Photosynthesis uses light energy to convert CO2 and water into glucose...",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 5,
+          "x": 0.1,
+          "y": 0.7,
+          "width": 0.5,
+          "height": 0.3
+        },
+        {
+          "page": 6,
+          "x": 0.1,
+          "y": 0.0,
+          "width": 0.5,
+          "height": 0.4
+        }
+      ]
+    }
+  ]
+}

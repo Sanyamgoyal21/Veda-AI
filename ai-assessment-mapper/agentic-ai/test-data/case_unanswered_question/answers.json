@@ -1,0 +1,18 @@
+{
+  "answers": [
+    {
+      "detected_question_number": "7",
+      "text": "Work is force times displacement.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    }
+  ]
+}

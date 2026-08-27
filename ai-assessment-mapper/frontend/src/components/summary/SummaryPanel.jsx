@@ -18,6 +18,12 @@ export default function SummaryPanel({ summary, onGrade, grading, hasGrading }) 
         <Stat value={summary.answered} label="Answered" className="text-emerald-600" />
         <Stat value={summary.unanswered} label="Unanswered" className="text-gray-400" />
         <Stat value={summary.unmatched} label="Unmatched" className="text-red-500" />
+        {summary.lowConfidence > 0 && (
+          <Stat value={summary.lowConfidence} label="Needs Review" className="text-amber-600" />
+        )}
+        {summary.teacherVerified > 0 && (
+          <Stat value={summary.teacherVerified} label="Teacher Verified" className="text-emerald-600" />
+        )}
         {hasGrading && (
           <Stat
             value={`${summary.totalScore ?? 0}/${summary.totalMaxScore ?? 0}`}

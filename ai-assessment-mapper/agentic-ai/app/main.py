@@ -1,10 +1,11 @@
+import json
 import logging
 import os
 import tempfile
 import uuid
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 load_dotenv()
@@ -75,14 +76,37 @@ async def process(
 
 
 @app.post("/api/grade")
-async def grade(payload: dict):
-    mappings = payload.get("mappings")
-    if not mappings:
+async def grade(
+    mappings: str = Form(...),
+    answer_file: UploadFile | None = File(None),
+    marking_scheme_file: UploadFile | None = File(None),
+):
+    try:
+        mappings_payload = json.loads(mappings)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="`mappings` must be valid JSON") from exc
+    if not mappings_payload:
         raise HTTPException(status_code=400, detail="`mappings` is required")
 
+    answer_path = marking_scheme_path = None
     try:
-        result = assessment_workflow.grade_assessment(mappings)
+        if answer_file is not None:
+            ext = _validate_upload(answer_file)
+            answer_path = await _save_upload(answer_file, ext)
+        if marking_scheme_file is not None:
+            ext = _validate_upload(marking_scheme_file)
+            marking_scheme_path = await _save_upload(marking_scheme_file, ext)
+
+        result = assessment_workflow.grade_assessment(
+            mappings_payload,
+            answer_file_path=answer_path,
+            marking_scheme_file_path=marking_scheme_path,
+        )
         return JSONResponse(content=result)
     except VisionServiceError as exc:
         logger.error("Vision provider failure during grading: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    finally:
+        for path in (answer_path, marking_scheme_path):
+            if path and os.path.exists(path):
+                os.remove(path)

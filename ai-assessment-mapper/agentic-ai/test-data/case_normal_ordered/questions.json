@@ -1,0 +1,22 @@
+{
+  "questions": [
+    {
+      "number": "1",
+      "text": "Define velocity.",
+      "page": 1,
+      "marks": 2
+    },
+    {
+      "number": "2",
+      "text": "Define acceleration.",
+      "page": 1,
+      "marks": 2
+    },
+    {
+      "number": "3",
+      "text": "State the SI unit of force.",
+      "page": 1,
+      "marks": 1
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "expectedMappings": {
+    "24": null,
+    "25": ""
+  },
+  "mockSemantic": {
+    "matched_question_number": "25",
+    "confidence": 0.75,
+    "reasoning": "content matches Newton's third law"
+  }
+}

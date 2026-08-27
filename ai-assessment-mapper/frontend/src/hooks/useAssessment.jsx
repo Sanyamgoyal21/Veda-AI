@@ -7,13 +7,24 @@ const AssessmentContext = createContext(null);
 export function AssessmentProvider({ children }) {
   const [questionFile, setQuestionFile] = useState(null);
   const [answerFile, setAnswerFile] = useState(null);
-  const [uploading, setUploading] = useState({ question: false, answer: false });
-  const [uploadErrors, setUploadErrors] = useState({ question: null, answer: null });
+  const [markingSchemeFile, setMarkingSchemeFile] = useState(null);
+  const [uploading, setUploading] = useState({ question: false, answer: false, markingScheme: false });
+  const [uploadErrors, setUploadErrors] = useState({ question: null, answer: null, markingScheme: null });
 
   const [assessment, setAssessment] = useState(null);
   const [processingError, setProcessingError] = useState(null);
   const [gradingInProgress, setGradingInProgress] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const [correctingMapping, setCorrectingMapping] = useState(false);
+  const [correctionError, setCorrectionError] = useState(null);
+  const [correctingGrade, setCorrectingGrade] = useState(false);
+  const [gradeCorrectionError, setGradeCorrectionError] = useState(null);
+
+  const SETTERS = {
+    question: setQuestionFile,
+    answer: setAnswerFile,
+    markingScheme: setMarkingSchemeFile,
+  };
 
   const uploadSlot = useCallback(async (slot, file) => {
     setUploadErrors((prev) => ({ ...prev, [slot]: null }));
@@ -21,8 +32,7 @@ export function AssessmentProvider({ children }) {
     try {
       const meta = await api.uploadFile(file);
       const record = { ...meta, localName: file.name };
-      if (slot === "question") setQuestionFile(record);
-      else setAnswerFile(record);
+      SETTERS[slot](record);
       return record;
     } catch (err) {
       setUploadErrors((prev) => ({ ...prev, [slot]: err.message }));
@@ -30,10 +40,12 @@ export function AssessmentProvider({ children }) {
     } finally {
       setUploading((prev) => ({ ...prev, [slot]: false }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const uploadQuestionPaper = useCallback((file) => uploadSlot("question", file), [uploadSlot]);
   const uploadAnswerSheet = useCallback((file) => uploadSlot("answer", file), [uploadSlot]);
+  const uploadMarkingScheme = useCallback((file) => uploadSlot("markingScheme", file), [uploadSlot]);
 
   const removeQuestionPaper = useCallback(() => {
     setQuestionFile(null);
@@ -45,20 +57,29 @@ export function AssessmentProvider({ children }) {
     setUploadErrors((prev) => ({ ...prev, answer: null }));
   }, []);
 
+  const removeMarkingScheme = useCallback(() => {
+    setMarkingSchemeFile(null);
+    setUploadErrors((prev) => ({ ...prev, markingScheme: null }));
+  }, []);
+
   const startMapping = useCallback(async () => {
     if (!questionFile || !answerFile) {
       throw new Error("Both files must be uploaded before mapping can start.");
     }
     setProcessingError(null);
     try {
-      const result = await api.processAssessment(questionFile.fileId, answerFile.fileId);
+      const result = await api.processAssessment(
+        questionFile.fileId,
+        answerFile.fileId,
+        markingSchemeFile?.fileId
+      );
       setAssessment(result);
       return result;
     } catch (err) {
       setProcessingError(err.message);
       throw err;
     }
-  }, [questionFile, answerFile]);
+  }, [questionFile, answerFile, markingSchemeFile]);
 
   const loadAssessmentById = useCallback(async (id) => {
     setLoadError(null);
@@ -83,12 +104,53 @@ export function AssessmentProvider({ children }) {
     }
   }, [assessment]);
 
+  /** answerId: an answer's detected_question_number, or null for "No Answer". */
+  const correctMapping = useCallback(
+    async (questionNumber, answerId) => {
+      if (!assessment) return;
+      setCorrectingMapping(true);
+      setCorrectionError(null);
+      try {
+        const updated = await api.correctMapping(assessment.assessmentId, questionNumber, answerId);
+        setAssessment(updated);
+        return updated;
+      } catch (err) {
+        setCorrectionError(err.message);
+        throw err;
+      } finally {
+        setCorrectingMapping(false);
+      }
+    },
+    [assessment]
+  );
+
+  /** overrides: { score?: number, feedback?: string } - either or both. */
+  const correctGrade = useCallback(
+    async (questionNumber, overrides) => {
+      if (!assessment) return;
+      setCorrectingGrade(true);
+      setGradeCorrectionError(null);
+      try {
+        const updated = await api.correctGrade(assessment.assessmentId, questionNumber, overrides);
+        setAssessment(updated);
+        return updated;
+      } catch (err) {
+        setGradeCorrectionError(err.message);
+        throw err;
+      } finally {
+        setCorrectingGrade(false);
+      }
+    },
+    [assessment]
+  );
+
   const reset = useCallback(() => {
     setQuestionFile(null);
     setAnswerFile(null);
+    setMarkingSchemeFile(null);
     setAssessment(null);
     setProcessingError(null);
-    setUploadErrors({ question: null, answer: null });
+    setUploadErrors({ question: null, answer: null, markingScheme: null });
   }, []);
 
   const mappingForQuestion = useCallback(
@@ -109,6 +171,16 @@ export function AssessmentProvider({ children }) {
     [assessment]
   );
 
+  /** Finds which question (if any) currently holds a given answer, so the UI
+   * can warn before reassigning it away from its current question. */
+  const mappingForAnswer = useCallback(
+    (answerId) => {
+      if (!assessment || !answerId) return null;
+      return assessment.mappings?.find((m) => m.answer_question_number === answerId && m.question_number) || null;
+    },
+    [assessment]
+  );
+
   const unmatchedMappings = useMemo(
     () => assessment?.mappings?.filter((m) => m.match_level === MATCH_LEVEL.UNMATCHED) || [],
     [assessment]
@@ -118,12 +190,15 @@ export function AssessmentProvider({ children }) {
     () => ({
       questionFile,
       answerFile,
+      markingSchemeFile,
       uploading,
       uploadErrors,
       uploadQuestionPaper,
       uploadAnswerSheet,
+      uploadMarkingScheme,
       removeQuestionPaper,
       removeAnswerSheet,
+      removeMarkingScheme,
       bothUploaded: Boolean(questionFile && answerFile),
 
       assessment,
@@ -136,20 +211,32 @@ export function AssessmentProvider({ children }) {
       gradingInProgress,
 
       mappingForQuestion,
+      mappingForAnswer,
       gradeForQuestion,
       unmatchedMappings,
+
+      correctMapping,
+      correctingMapping,
+      correctionError,
+
+      correctGrade,
+      correctingGrade,
+      gradeCorrectionError,
 
       reset,
     }),
     [
       questionFile,
       answerFile,
+      markingSchemeFile,
       uploading,
       uploadErrors,
       uploadQuestionPaper,
       uploadAnswerSheet,
+      uploadMarkingScheme,
       removeQuestionPaper,
       removeAnswerSheet,
+      removeMarkingScheme,
       assessment,
       startMapping,
       loadAssessmentById,
@@ -158,8 +245,15 @@ export function AssessmentProvider({ children }) {
       runGrading,
       gradingInProgress,
       mappingForQuestion,
+      mappingForAnswer,
       gradeForQuestion,
       unmatchedMappings,
+      correctMapping,
+      correctingMapping,
+      correctionError,
+      correctGrade,
+      correctingGrade,
+      gradeCorrectionError,
       reset,
     ]
   );

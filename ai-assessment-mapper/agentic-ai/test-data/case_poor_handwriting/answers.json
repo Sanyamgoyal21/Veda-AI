@@ -1,0 +1,18 @@
+{
+  "answers": [
+    {
+      "detected_question_number": "19",
+      "text": "pH is a mesure of acidty or alkalinty of a solushun.",
+      "confidence": 0.32,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    }
+  ]
+}

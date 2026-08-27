@@ -27,8 +27,22 @@ async function processAssessment(questionFilePath, answerFilePath) {
   return response.data;
 }
 
-async function gradeAssessment(mappings) {
-  const response = await client.post("/api/grade", { mappings });
+async function gradeAssessment(mappings, answerFilePath, markingSchemeFilePath) {
+  const form = new FormData();
+  form.append("mappings", JSON.stringify(mappings));
+  if (answerFilePath) {
+    form.append("answer_file", fs.createReadStream(answerFilePath));
+  }
+  if (markingSchemeFilePath) {
+    form.append("marking_scheme_file", fs.createReadStream(markingSchemeFilePath));
+  }
+
+  const response = await client.post("/api/grade", form, {
+    headers: form.getHeaders(),
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+  });
+
   return response.data;
 }
 

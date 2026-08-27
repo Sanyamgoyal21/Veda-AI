@@ -1,0 +1,25 @@
+{
+  "answers": [
+    {
+      "detected_question_number": "18",
+      "text": "An atom consists of a nucleus containing protons and neutrons... (continued) ...surrounded by electron shells.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 7,
+          "x": 0.1,
+          "y": 0.6,
+          "width": 0.5,
+          "height": 0.4
+        },
+        {
+          "page": 8,
+          "x": 0.1,
+          "y": 0.0,
+          "width": 0.5,
+          "height": 0.3
+        }
+      ]
+    }
+  ]
+}

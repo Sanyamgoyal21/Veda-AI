@@ -32,3 +32,19 @@ def image_to_base64(image: Image.Image, fmt: str = "JPEG") -> str:
 
 def media_type_for_format(fmt: str) -> str:
     return "image/jpeg" if fmt == "JPEG" else "image/png"
+
+
+def crop_region(image: Image.Image, x: float, y: float, width: float, height: float, margin: float = 0.02) -> Image.Image:
+    """
+    Crops a page image to a normalized (0-1) region, with a small margin so
+    the crop doesn't clip the edges of the handwriting. Used to give the
+    grading model the actual answer image instead of only its transcription.
+    """
+    img_width, img_height = image.size
+    x0 = max(0, int((x - margin) * img_width))
+    y0 = max(0, int((y - margin) * img_height))
+    x1 = min(img_width, int((x + width + margin) * img_width))
+    y1 = min(img_height, int((y + height + margin) * img_height))
+    if x1 <= x0 or y1 <= y0:
+        return image
+    return image.crop((x0, y0, x1, y1))

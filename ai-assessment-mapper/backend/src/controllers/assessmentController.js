@@ -7,19 +7,25 @@ const mappingService = require("../services/mappingService");
 async function processAssessment(req, res, next) {
   try {
     requireFields(req.body, ["questionFileId", "answerFileId"]);
-    const { questionFileId, answerFileId } = req.body;
+    const { questionFileId, answerFileId, markingSchemeFileId } = req.body;
 
     const questionFile = fileService.getFile(questionFileId);
     const answerFile = fileService.getFile(answerFileId);
+    // The marking scheme, if any, is only needed at grading time - just
+    // validate it exists now so a bad fileId fails fast, don't send it to
+    // the AI service until (and unless) the teacher actually grades.
+    if (markingSchemeFileId) {
+      fileService.getFile(markingSchemeFileId);
+    }
 
     const result = await aiService.processAssessment(questionFile.path, answerFile.path);
 
-    const assessmentId = assessmentService.create(result, questionFileId, answerFileId);
+    const assessmentId = assessmentService.create(result, questionFileId, answerFileId, markingSchemeFileId || null);
     const fileMeta = fileService.getFileMetaPair(questionFileId, answerFileId);
 
     res.status(201).json({
       assessmentId,
-      ...mappingService.attachFileUrls(result, assessmentId, fileMeta),
+      ...mappingService.attachFileUrls(result, assessmentId, fileMeta, Boolean(markingSchemeFileId)),
     });
   } catch (err) {
     next(err);
@@ -31,7 +37,10 @@ function getAssessment(req, res, next) {
     const { id } = req.params;
     const record = assessmentService.get(id);
     const fileMeta = fileService.getFileMetaPair(record.questionFileId, record.answerFileId);
-    res.json({ assessmentId: id, ...mappingService.attachFileUrls(record.result, id, fileMeta) });
+    res.json({
+      assessmentId: id,
+      ...mappingService.attachFileUrls(record.result, id, fileMeta, Boolean(record.markingSchemeFileId)),
+    });
   } catch (err) {
     next(err);
   }
@@ -42,6 +51,25 @@ function deleteAssessment(req, res, next) {
     const { id } = req.params;
     assessmentService.remove(id);
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+function correctMapping(req, res, next) {
+  try {
+    const { id } = req.params;
+    requireFields(req.body, ["questionNumber"]);
+    const { questionNumber, answerId } = req.body;
+
+    const record = assessmentService.get(id);
+    mappingService.applyManualCorrection(record.result, questionNumber, answerId ?? null);
+
+    const fileMeta = fileService.getFileMetaPair(record.questionFileId, record.answerFileId);
+    res.json({
+      assessmentId: id,
+      ...mappingService.attachFileUrls(record.result, id, fileMeta, Boolean(record.markingSchemeFileId)),
+    });
   } catch (err) {
     next(err);
   }
@@ -65,4 +93,4 @@ function streamFile(req, res, next) {
   }
 }
 
-module.exports = { processAssessment, getAssessment, deleteAssessment, streamFile };
+module.exports = { processAssessment, getAssessment, deleteAssessment, streamFile, correctMapping };

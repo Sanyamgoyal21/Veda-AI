@@ -18,7 +18,7 @@ export const MATCH_LEVEL_LABEL = {
   [MATCH_LEVEL.NORMALIZED]: "Answered",
   [MATCH_LEVEL.FUZZY]: "Answered",
   [MATCH_LEVEL.SEMANTIC]: "Answered",
-  [MATCH_LEVEL.LOW_CONFIDENCE]: "Low confidence",
+  [MATCH_LEVEL.LOW_CONFIDENCE]: "Needs Review",
   [MATCH_LEVEL.UNANSWERED]: "Unanswered",
   [MATCH_LEVEL.UNMATCHED]: "Unmatched",
 };

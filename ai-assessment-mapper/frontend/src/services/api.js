@@ -30,11 +30,12 @@ export async function uploadFile(file) {
   }
 }
 
-export async function processAssessment(questionFileId, answerFileId) {
+export async function processAssessment(questionFileId, answerFileId, markingSchemeFileId) {
   try {
     const { data } = await client.post("/assessment/process", {
       questionFileId,
       answerFileId,
+      ...(markingSchemeFileId ? { markingSchemeFileId } : {}),
     });
     return data;
   } catch (err) {
@@ -54,6 +55,33 @@ export async function getAssessment(assessmentId) {
 export async function gradeAssessment(assessmentId) {
   try {
     const { data } = await client.post(`/assessment/${assessmentId}/grade`);
+    return data;
+  } catch (err) {
+    throw unwrapError(err);
+  }
+}
+
+/** answerId: the answer's detected_question_number, or null for "No Answer". */
+export async function correctMapping(assessmentId, questionNumber, answerId) {
+  try {
+    const { data } = await client.patch(`/assessment/${assessmentId}/mapping`, {
+      questionNumber,
+      answerId,
+    });
+    return data;
+  } catch (err) {
+    throw unwrapError(err);
+  }
+}
+
+/** Sends a teacher's edited score, feedback, or both for one question's grade. */
+export async function correctGrade(assessmentId, questionNumber, { score, feedback } = {}) {
+  try {
+    const { data } = await client.patch(`/assessment/${assessmentId}/grade`, {
+      questionNumber,
+      ...(score !== undefined ? { score } : {}),
+      ...(feedback !== undefined ? { feedback } : {}),
+    });
     return data;
   } catch (err) {
     throw unwrapError(err);

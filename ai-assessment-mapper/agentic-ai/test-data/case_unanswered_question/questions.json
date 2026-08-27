@@ -1,0 +1,16 @@
+{
+  "questions": [
+    {
+      "number": "7",
+      "text": "Define work.",
+      "page": 1,
+      "marks": 2
+    },
+    {
+      "number": "8",
+      "text": "Define power.",
+      "page": 1,
+      "marks": 2
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "questions": [
+    {"number": "1", "text": "What is gravity?", "page": 1, "marks": 2},
+    {"number": "2", "text": "What is inertia?", "page": 1, "marks": 2},
+    {"number": "3", "text": "State Newton's first law.", "page": 1, "marks": 3},
+    {"number": "11(a)", "text": "Explain mitosis.", "page": 2, "marks": 3},
+    {"number": "11(b)", "text": "Explain meiosis.", "page": 2, "marks": 3},
+    {"number": "12", "text": "What is osmosis?", "page": 2, "marks": 2},
+    {"number": "13(a)", "text": "Find the perimeter of a 4x6 rectangle.", "page": 3, "marks": 2},
+    {"number": "13(b)", "text": "Find the area of the same rectangle.", "page": 3, "marks": 2}
+  ]
+}

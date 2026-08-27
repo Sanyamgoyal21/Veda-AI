@@ -30,6 +30,20 @@ SUB-PARTS - read this carefully, it is the most common source of errors:
   previous sub-answer.
 - An answer may span multiple pages (continuation). If so, include one region
   per page it appears on, all under the same answer entry.
+- `detected_question_number` must contain ONLY the number/letters (e.g. "5",
+  "11(a)", "26(ii)") - NEVER add words like "continued", "cont.", "contd",
+  or any other annotation to it, even when a page is clearly a continuation
+  with no fresh number label of its own. A continuation must repeat the
+  EXACT SAME number string as the answer it continues, character-for-
+  character - if you write it any differently, it will not be recognized as
+  the same answer and the continuation will be lost.
+- You may only see a subset of the document's pages in this request. If a
+  page here has handwritten text with no visible question-number label
+  because the label was written on a page you cannot see, use context (is it
+  a natural continuation of content from the top of this chunk's first
+  page, or a fresh start?) to decide whether to report it under the most
+  recently implied number or leave the number as your best single guess -
+  but still emit only a bare number/letters string, never an annotation.
 - Provide a `confidence` score from 0 to 1 reflecting how certain you are of
   BOTH the detected question number and the transcription.
 - For every region, provide NORMALIZED bounding box coordinates (0-1 relative

@@ -19,20 +19,28 @@ export default function Home() {
   const {
     questionFile,
     answerFile,
+    markingSchemeFile,
     uploading,
     uploadErrors,
     uploadQuestionPaper,
     uploadAnswerSheet,
+    uploadMarkingScheme,
     removeQuestionPaper,
     removeAnswerSheet,
+    removeMarkingScheme,
     bothUploaded,
   } = useAssessment();
 
   const subtitle = useSubtitle(questionFile, answerFile);
 
+  const UPLOAD_FNS = {
+    question: uploadQuestionPaper,
+    answer: uploadAnswerSheet,
+    markingScheme: uploadMarkingScheme,
+  };
+
   const handleSelect = (slot, file) => {
-    const upload = slot === "question" ? uploadQuestionPaper : uploadAnswerSheet;
-    upload(file).catch(() => {});
+    UPLOAD_FNS[slot](file).catch(() => {});
   };
 
   return (
@@ -62,6 +70,7 @@ export default function Home() {
               error={uploadErrors.question}
               onSelect={(file) => handleSelect("question", file)}
               onRemove={removeQuestionPaper}
+              testId="upload-question"
             />
             <UploadDropzone
               label="Answer Sheet"
@@ -71,7 +80,24 @@ export default function Home() {
               error={uploadErrors.answer}
               onSelect={(file) => handleSelect("answer", file)}
               onRemove={removeAnswerSheet}
+              testId="upload-answer"
             />
+          </div>
+
+          <div className="w-full max-w-3xl mt-5">
+            <UploadDropzone
+              label="Marking Scheme"
+              accentLabel="Marking Scheme (optional)"
+              file={markingSchemeFile}
+              uploading={uploading.markingScheme}
+              error={uploadErrors.markingScheme}
+              onSelect={(file) => handleSelect("markingScheme", file)}
+              onRemove={removeMarkingScheme}
+            />
+            <p className="text-xs text-gray-400 mt-2 text-center">
+              Optional — a marking scheme or model answer improves grading confidence.
+              Without one, rubrics are AI-generated from the questions alone.
+            </p>
           </div>
 
           <Button

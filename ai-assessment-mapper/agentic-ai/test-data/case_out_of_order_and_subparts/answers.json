@@ -1,0 +1,18 @@
+{
+  "answers": [
+    {"detected_question_number": "3", "text": "An object in motion stays in motion unless acted on.", "confidence": 0.95,
+     "regions": [{"page": 1, "x": 0.1, "y": 0.1, "width": 0.5, "height": 0.1}]},
+    {"detected_question_number": "11(b)", "text": "Meiosis produces four genetically distinct daughter cells.", "confidence": 0.9,
+     "regions": [{"page": 1, "x": 0.1, "y": 0.25, "width": 0.5, "height": 0.1}]},
+    {"detected_question_number": "1", "text": "Gravity is the force that attracts two bodies with mass.", "confidence": 0.95,
+     "regions": [{"page": 1, "x": 0.1, "y": 0.4, "width": 0.5, "height": 0.1}]},
+    {"detected_question_number": "13(a)", "text": "Perimeter = 2(4+6) = 20.", "confidence": 0.9,
+     "regions": [{"page": 2, "x": 0.1, "y": 0.1, "width": 0.5, "height": 0.1}]},
+    {"detected_question_number": "11(a)", "text": "Mitosis produces two genetically identical daughter cells.", "confidence": 0.9,
+     "regions": [{"page": 2, "x": 0.1, "y": 0.25, "width": 0.5, "height": 0.1}]},
+    {"detected_question_number": "2", "text": "Inertia is the tendency of an object to resist changes in motion.", "confidence": 0.95,
+     "regions": [{"page": 2, "x": 0.1, "y": 0.4, "width": 0.5, "height": 0.1}]},
+    {"detected_question_number": "13(b)", "text": "Area = 4x6 = 24.", "confidence": 0.9,
+     "regions": [{"page": 3, "x": 0.1, "y": 0.1, "width": 0.5, "height": 0.1}]}
+  ]
+}

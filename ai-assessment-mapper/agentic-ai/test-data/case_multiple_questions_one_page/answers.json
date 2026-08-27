@@ -1,0 +1,32 @@
+{
+  "answers": [
+    {
+      "detected_question_number": "16",
+      "text": "Nitrogen.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    },
+    {
+      "detected_question_number": "17",
+      "text": "Water.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.25,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    }
+  ]
+}

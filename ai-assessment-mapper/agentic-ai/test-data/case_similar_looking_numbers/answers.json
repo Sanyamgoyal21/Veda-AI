@@ -1,0 +1,46 @@
+{
+  "answers": [
+    {
+      "detected_question_number": "1",
+      "text": "Answer to one.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    },
+    {
+      "detected_question_number": "11",
+      "text": "Answer to eleven.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.25,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    },
+    {
+      "detected_question_number": "111",
+      "text": "Answer to one-eleven.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.4,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    }
+  ]
+}

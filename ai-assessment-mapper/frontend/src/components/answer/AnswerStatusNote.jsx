@@ -19,7 +19,7 @@ export default function AnswerStatusNote({ matchLevel, answerText }) {
         </p>
       )}
       <p className="text-xs font-semibold text-ink">Transcribed answer</p>
-      <p className="text-sm text-gray-500 line-clamp-4">{answerText}</p>
+      <p className="text-sm text-gray-500">{answerText}</p>
     </div>
   );
 }
