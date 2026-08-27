@@ -22,7 +22,7 @@ def _extract_raw_items(pages: list[PageImage]) -> tuple[list[dict], list[str]]:
     items: list[dict] = []
     warnings: list[str] = []
 
-    for chunk in chunks:
+    for chunk_index, chunk in enumerate(chunks):
         raw = vision_service.run_structured_extraction(
             system_prompt=answer_prompt.SYSTEM_PROMPT,
             user_prompt=answer_prompt.build_user_prompt(len(chunk.pages)),
@@ -32,7 +32,8 @@ def _extract_raw_items(pages: list[PageImage]) -> tuple[list[dict], list[str]]:
             input_schema=answer_prompt.INPUT_SCHEMA,
         )
         warnings.extend(raw.get("warnings", []))
-        items.extend(raw.get("answers", []))
+        for item in raw.get("answers", []):
+            items.append({**item, "_chunk_index": chunk_index})
 
     return items, warnings
 
@@ -100,13 +101,45 @@ def _dedupe_and_merge_answers(items: list[dict]) -> tuple[list[dict], list[str]]
         if len(entries) == 1 or not key:
             merged.extend(entries)
             continue
-        result = _merge_answer_group(entries)
-        merged.append(result)
-        warnings.append(
-            f"Answer '{result.get('detected_question_number')}' was independently detected "
-            f"in {len(entries)} overlapping chunks; merged into one answer covering "
-            f"{len(result['regions'])} region(s)."
-        )
+
+        # A repeated number is not by itself a duplicate. OCR can misread a
+        # distant answer as (say) 28(iii), while the real 28(iii) also exists.
+        # Merge only entries emitted by different chunks that share a page;
+        # that shared page is the evidence that this is overlap/continuation.
+        pending = list(entries)
+        while pending:
+            component = [pending.pop(0)]
+            changed = True
+            while changed:
+                changed = False
+                component_chunks = {e.get("_chunk_index") for e in component}
+                for candidate in pending[:]:
+                    candidate_chunk = candidate.get("_chunk_index")
+                    different_chunk = (
+                        candidate_chunk not in component_chunks
+                        or (candidate_chunk is None and component_chunks == {None})
+                    )
+                    regions_overlap = any(
+                        _regions_overlap(a, b)
+                        for entry in component
+                        for a in entry.get("regions", [])
+                        for b in candidate.get("regions", [])
+                    )
+                    if different_chunk and regions_overlap:
+                        component.append(candidate)
+                        pending.remove(candidate)
+                        changed = True
+
+            if len(component) == 1:
+                merged.extend(component)
+            else:
+                result = _merge_answer_group(component)
+                merged.append(result)
+                warnings.append(
+                    f"Answer '{result.get('detected_question_number')}' was independently detected "
+                    f"in {len(component)} overlapping chunks; merged into one answer covering "
+                    f"{len(result['regions'])} region(s)."
+                )
     return merged, warnings
 
 

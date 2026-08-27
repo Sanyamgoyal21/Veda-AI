@@ -1,5 +1,6 @@
 """Extracts every question from a question paper document."""
 from collections import defaultdict
+import re
 
 from pydantic import ValidationError
 
@@ -9,6 +10,33 @@ from app.services import vision_service
 from app.services.chunking import chunk_pages
 from app.services.pdf_service import PageImage, refine_text_region
 from app.utils.normalization import extract_order_key, normalize_question_number
+
+_SUBPART_RE = re.compile(r"(?<!\w)\(([a-z]|i{1,4}|iv|v|vi{0,3}|ix|x)\)\s*", re.IGNORECASE)
+
+
+def _split_bundled_subparts(item: dict) -> list[dict]:
+    """Split a bare parent item when the model bundled 2+ labeled parts."""
+    number = normalize_question_number(item.get("number", ""))
+    text = item.get("text", "")
+    if not number or "(" in number:
+        return [item]
+    matches = list(_SUBPART_RE.finditer(text))
+    if len(matches) < 2:
+        return [item]
+
+    stem = text[: matches[0].start()].strip(" :-\n")
+    result = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        part_text = text[match.end() : end].strip(" ,;:-\n")
+        if not part_text:
+            return [item]
+        result.append({
+            **item,
+            "number": f"{number}({match.group(1).lower()})",
+            "text": f"{stem} {part_text}".strip(),
+        })
+    return result
 
 
 def _extract_raw_items(pages: list[PageImage]) -> tuple[list[dict], list[str]]:
@@ -69,7 +97,8 @@ def _dedupe_across_chunks(items: list[dict]) -> tuple[list[dict], list[str]]:
 
 def run(pages: list[PageImage], file_path: str | None = None) -> QuestionExtractionResult:
     raw_items, extraction_warnings = _extract_raw_items(pages)
-    deduped_items, dedupe_warnings = _dedupe_across_chunks(raw_items)
+    expanded_items = [part for item in raw_items for part in _split_bundled_subparts(item)]
+    deduped_items, dedupe_warnings = _dedupe_across_chunks(expanded_items)
     warnings: list[str] = extraction_warnings + dedupe_warnings
 
     questions: list[Question] = []

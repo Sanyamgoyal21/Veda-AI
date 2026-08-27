@@ -5,7 +5,28 @@ losing or duplicating content. No AI calls - these operate on raw dicts
 shaped like what a chunk's extraction call would return.
 """
 from app.agents.answer_extraction_agent import _dedupe_and_merge_answers
-from app.agents.question_extraction_agent import _dedupe_across_chunks
+from app.agents.question_extraction_agent import _dedupe_across_chunks, _split_bundled_subparts
+
+
+def test_bare_question_with_roman_subparts_is_split():
+    parts = _split_bundled_subparts({
+        "number": "Q21",
+        "text": "Two dice are thrown. Find probability that (i) sum is 7, (ii) sum is prime.",
+        "page": 2,
+    })
+    assert [p["number"] for p in parts] == ["21(i)", "21(ii)"]
+    assert all("Two dice are thrown" in p["text"] for p in parts)
+
+
+def test_repeated_number_in_unrelated_regions_is_not_merged():
+    items = [
+        {"detected_question_number": "28(iii)", "text": "ladder", "confidence": .8,
+         "_chunk_index": 0, "regions": [{"page": 1, "x": .1, "y": .1, "width": .3, "height": .1}]},
+        {"detected_question_number": "28(iii)", "text": "median", "confidence": .9,
+         "_chunk_index": 0, "regions": [{"page": 1, "x": .1, "y": .7, "width": .3, "height": .1}]},
+    ]
+    merged, _ = _dedupe_and_merge_answers(items)
+    assert len(merged) == 2
 
 
 def test_question_overlap_duplicate_keeps_most_complete():

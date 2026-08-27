@@ -9,7 +9,11 @@ import axios from "axios";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const ORIGIN = API_URL.replace(/\/api\/?$/, "");
 
-const client = axios.create({ baseURL: API_URL, timeout: 180000 });
+// Matches the backend's own timeout to the AI service (600000ms) - grading
+// a long exam iterates every answered question sequentially and can
+// legitimately take several minutes, so the browser must not give up
+// before the backend itself would.
+const client = axios.create({ baseURL: API_URL, timeout: 600000 });
 
 function unwrapError(error) {
   const message =

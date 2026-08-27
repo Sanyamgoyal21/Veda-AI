@@ -10,6 +10,9 @@ judgement is fine (observed during testing); separating "judge" from "sum"
 removes that failure mode entirely, since Python addition doesn't make
 mistakes.
 """
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from app.agents import rubric_agent
 from app.prompts import grading_prompt
 from app.schemas.assessment_schema import (
@@ -25,6 +28,7 @@ from app.services.image_service import crop_region
 from app.services.pdf_service import PageImage, load_document_pages
 
 DEFAULT_MAX_MARKS = 5
+MAX_GRADING_WORKERS = max(1, int(os.getenv("GRADING_MAX_WORKERS", "4")))
 
 
 def _confidence_bucket(
@@ -215,15 +219,25 @@ def run(
 
     page_images = _load_answer_page_images(answer_file_path)
 
-    for mapping in gradable:
-        try:
-            rubric = rubric_agent.generate(mapping.question, marking_scheme_text, marking_scheme_pages)
-        except vision_service.VisionServiceError as exc:
-            warnings.append(f"Could not build a rubric for question '{mapping.question.number}': {exc}")
-            continue
-
+    def grade_mapping(mapping: Mapping) -> GradeResult:
+        rubric = rubric_agent.generate(mapping.question, marking_scheme_text, marking_scheme_pages)
         answer_crops = _crop_answer_images(mapping, page_images)
-        grades.append(_grade_one(mapping, rubric, answer_crops))
+        return _grade_one(mapping, rubric, answer_crops)
+
+    # Each question is independent. A small bounded pool avoids the previous
+    # 2*N sequential provider round trips without flooding the provider.
+    completed: dict[int, GradeResult] = {}
+    with ThreadPoolExecutor(max_workers=min(MAX_GRADING_WORKERS, len(gradable) or 1)) as executor:
+        futures = {executor.submit(grade_mapping, mapping): (index, mapping) for index, mapping in enumerate(gradable)}
+        for future in as_completed(futures):
+            index, mapping = futures[future]
+            try:
+                completed[index] = future.result()
+            except vision_service.VisionServiceError as exc:
+                warnings.append(f"Could not build a rubric for question '{mapping.question.number}': {exc}")
+
+    for index in sorted(completed):
+        grades.append(completed[index])
 
     warnings.extend(_validate_grades(grades))
 

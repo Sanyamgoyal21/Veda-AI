@@ -10,7 +10,11 @@ const config = require("../config/config");
 
 const client = axios.create({
   baseURL: config.aiServiceUrl,
-  timeout: 120000, // vision extraction over several pages can take a while
+  // Grading iterates every answered question sequentially (a rubric call
+  // plus a grading vision call each), so a long exam with 30+ answered
+  // questions can legitimately take several minutes end-to-end - this must
+  // stay well above that, not just above a single vision call's latency.
+  timeout: 600000,
 });
 
 async function processAssessment(questionFilePath, answerFilePath) {

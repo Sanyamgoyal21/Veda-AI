@@ -89,7 +89,57 @@ def _try_semantic(answer: Answer, candidate_questions: list[Question]) -> _Candi
     return None
 
 
+def _rank_duplicate_claims(questions: list[Question], answers: list[Answer]) -> list[Answer]:
+    """Put the content-compatible answer first when OCR produced duplicate labels."""
+    ordered = list(answers)
+    by_number: dict[str, list[Answer]] = {}
+    for answer in answers:
+        by_number.setdefault(answer.normalized_question_number, []).append(answer)
+
+    question_by_number = {q.normalized_number: q for q in questions}
+    for number, claims in by_number.items():
+        question = question_by_number.get(number)
+        if not question or len(claims) < 2:
+            continue
+        try:
+            raw = vision_service.run_structured_extraction(
+                system_prompt=(
+                    "Select which candidate answer actually addresses the given exam question. "
+                    "Question-number OCR can be wrong. Return null if none address it."
+                ),
+                user_prompt=(
+                    f"Question: {question.text}\n\nCandidates:\n" + "\n".join(
+                        f"[{i}] {answer.text}" for i, answer in enumerate(claims)
+                    )
+                ),
+                pages=[],
+                tool_name="select_matching_answer",
+                tool_description="Select the candidate answer that best answers the question.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "selected_answer_index": {"type": ["integer", "null"]},
+                        "confidence": {"type": "number"},
+                    },
+                    "required": ["selected_answer_index", "confidence"],
+                },
+                max_tokens=256,
+            )
+            selected = raw.get("selected_answer_index")
+            if isinstance(selected, int) and 0 <= selected < len(claims):
+                winner = claims[selected]
+                ordered.remove(winner)
+                first_claim_position = min(ordered.index(c) for c in claims if c in ordered)
+                ordered.insert(first_claim_position, winner)
+        except (vision_service.VisionServiceError, ValueError):
+            # Preserve deterministic original ordering if the optional check fails.
+            pass
+    return ordered
+
+
 def run(questions: list[Question], answers: list[Answer], enable_semantic: bool = True) -> list[Mapping]:
+    if enable_semantic:
+        answers = _rank_duplicate_claims(questions, answers)
     remaining_questions: list[Question] = list(questions)
     matched_question_ids: set[int] = set()
     mappings: list[Mapping] = []

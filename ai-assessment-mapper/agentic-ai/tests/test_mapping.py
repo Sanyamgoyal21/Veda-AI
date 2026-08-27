@@ -111,6 +111,17 @@ def test_duplicate_answers_for_same_question_first_wins_second_reported_unmatche
     assert len(mapped_numbers) == len(set(mapped_numbers))
 
 
+def test_duplicate_label_uses_content_check_to_choose_real_answer():
+    questions = [q("28(iii)", "Find the median of the data.")]
+    answers = [a("28(iii)", "The ladder angle is less than 60 degrees."),
+               a("28(iii)", "Median is average of 5th and 6th values = 23.5.")]
+    with patch("app.services.vision_service.run_structured_extraction",
+               return_value={"selected_answer_index": 1, "confidence": .98}):
+        mappings = mapping_agent.run(questions, answers)
+    assert mapping_for(mappings, "28(iii)").answer.text.startswith("Median")
+    assert any(m.match_level == "unmatched" and "ladder" in m.answer.text for m in mappings)
+
+
 def test_unmatched_answer_produces_explicit_mapping():
     mappings = mapping_agent.run([q("1", "Q1")], [a("1", "Answer to 1"), a("99", "Stray answer")], enable_semantic=False)
     unmatched = [m for m in mappings if m.match_level == "unmatched"]
