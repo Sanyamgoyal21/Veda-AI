@@ -20,7 +20,7 @@ from app.services.image_service import image_to_base64, resize_for_vision
 from app.services.pdf_service import PageImage
 
 AI_API_KEY = os.getenv("AI_API_KEY", "")
-AI_MODEL = os.getenv("AI_MODEL", "gemini-2.0-flash")
+AI_MODEL = os.getenv("AI_MODEL", "gemini-3.6-flash")
 AI_BASE_URL = os.getenv("AI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
 
 _client: openai.OpenAI | None = None
