@@ -34,12 +34,11 @@ export async function uploadFile(file) {
   }
 }
 
-export async function processAssessment(questionFileId, answerFileId, markingSchemeFileId) {
+export async function processAssessment(questionFileId, answerFileId) {
   try {
     const { data } = await client.post("/assessment/process", {
       questionFileId,
       answerFileId,
-      ...(markingSchemeFileId ? { markingSchemeFileId } : {}),
     });
     return data;
   } catch (err) {
