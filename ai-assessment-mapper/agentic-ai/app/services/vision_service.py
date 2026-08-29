@@ -6,10 +6,10 @@ Swapping providers means editing this file only. The provider is selected via
 AI_API_KEY / AI_MODEL / AI_BASE_URL environment variables and is never
 exposed to callers outside this service, let alone to the frontend.
 
-Currently backed by Gemini's OpenAI-compatible endpoint (vision + forced
-function-calling for structured output) - the `openai` SDK is kept as the
-client since Gemini implements the same Chat Completions wire format, so no
-new dependency or calling-code change was needed to switch providers.
+Currently backed by OpenAI's Chat Completions API (vision + forced
+function-calling for structured output). AI_BASE_URL is an optional override
+left in place from a prior Gemini trial (its OpenAI-compatible endpoint) -
+when unset, the `openai` SDK talks to OpenAI's own endpoint as normal.
 """
 import json
 import os
@@ -20,8 +20,8 @@ from app.services.image_service import image_to_base64, resize_for_vision
 from app.services.pdf_service import PageImage
 
 AI_API_KEY = os.getenv("AI_API_KEY", "")
-AI_MODEL = os.getenv("AI_MODEL", "gemini-3.6-flash")
-AI_BASE_URL = os.getenv("AI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
+AI_MODEL = os.getenv("AI_MODEL", "gpt-4o")
+AI_BASE_URL = os.getenv("AI_BASE_URL") or None
 
 _client: openai.OpenAI | None = None
 
