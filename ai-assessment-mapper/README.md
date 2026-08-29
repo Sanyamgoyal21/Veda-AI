@@ -27,7 +27,7 @@ Node.js / Express  (API gateway, uploads, temp storage, orchestration)
 Agentic AI (Python, FastAPI)  (agent pipeline)
         │
         ▼
-Vision AI model (Gemini gemini-2.0-flash, vision + forced function-calling)
+Vision AI model (Gemini gemini-3.6-flash, vision + forced function-calling)
 ```
 
 - **frontend/** — React + JavaScript only (no TypeScript). Upload UI,
@@ -291,7 +291,7 @@ UPLOAD_TTL_HOURS=6
 ```
 PORT=8000
 AI_API_KEY=            # never exposed to the frontend or backend logs (Gemini key - https://aistudio.google.com/apikey)
-AI_MODEL=gemini-2.0-flash
+AI_MODEL=gemini-3.6-flash
 AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 MAX_IMAGE_DIMENSION=1600
 PDF_RENDER_DPI=200
@@ -325,7 +325,7 @@ transcription alone loses diagrams, equations, and tables.
 
 ## AI model used
 
-Gemini `gemini-2.0-flash` (vision-capable, forced function-calling for
+Gemini `gemini-3.6-flash` (vision-capable, forced function-calling for
 structured JSON output on extraction/mapping/rubric/grading calls), accessed
 through Gemini's OpenAI-compatible endpoint via the official `openai` Python
 SDK (pointed at `AI_BASE_URL` instead of OpenAI's own endpoint - no separate
