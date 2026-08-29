@@ -12,6 +12,7 @@ export default function UploadDropzone({
   error,
   onSelect,
   onRemove,
+  testId,
 }) {
   const inputRef = useRef(null);
 
@@ -38,6 +39,7 @@ export default function UploadDropzone({
         accept={ACCEPTED_FILE_INPUT}
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
+        data-testid={testId}
       />
 
       {!file && !uploading && (

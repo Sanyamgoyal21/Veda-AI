@@ -9,7 +9,11 @@ import axios from "axios";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const ORIGIN = API_URL.replace(/\/api\/?$/, "");
 
-const client = axios.create({ baseURL: API_URL, timeout: 180000 });
+// Matches the backend's own timeout to the AI service (600000ms) - grading
+// a long exam iterates every answered question sequentially and can
+// legitimately take several minutes, so the browser must not give up
+// before the backend itself would.
+const client = axios.create({ baseURL: API_URL, timeout: 600000 });
 
 function unwrapError(error) {
   const message =
@@ -30,11 +34,12 @@ export async function uploadFile(file) {
   }
 }
 
-export async function processAssessment(questionFileId, answerFileId) {
+export async function processAssessment(questionFileId, answerFileId, markingSchemeFileId) {
   try {
     const { data } = await client.post("/assessment/process", {
       questionFileId,
       answerFileId,
+      ...(markingSchemeFileId ? { markingSchemeFileId } : {}),
     });
     return data;
   } catch (err) {
@@ -54,6 +59,33 @@ export async function getAssessment(assessmentId) {
 export async function gradeAssessment(assessmentId) {
   try {
     const { data } = await client.post(`/assessment/${assessmentId}/grade`);
+    return data;
+  } catch (err) {
+    throw unwrapError(err);
+  }
+}
+
+/** answerId: the answer's detected_question_number, or null for "No Answer". */
+export async function correctMapping(assessmentId, questionNumber, answerId) {
+  try {
+    const { data } = await client.patch(`/assessment/${assessmentId}/mapping`, {
+      questionNumber,
+      answerId,
+    });
+    return data;
+  } catch (err) {
+    throw unwrapError(err);
+  }
+}
+
+/** Sends a teacher's edited score, feedback, or both for one question's grade. */
+export async function correctGrade(assessmentId, questionNumber, { score, feedback } = {}) {
+  try {
+    const { data } = await client.patch(`/assessment/${assessmentId}/grade`, {
+      questionNumber,
+      ...(score !== undefined ? { score } : {}),
+      ...(feedback !== undefined ? { feedback } : {}),
+    });
     return data;
   } catch (err) {
     throw unwrapError(err);

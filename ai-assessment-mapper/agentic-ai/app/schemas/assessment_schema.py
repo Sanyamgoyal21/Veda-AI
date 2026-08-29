@@ -22,6 +22,9 @@ class Mapping(BaseModel):
     match_score: float = Field(ge=0, le=1)
     question: Optional[Question] = None
     answer: Optional[Answer] = None
+    # "teacher" only ever gets set by the backend's manual-correction
+    # endpoint, never by this service - the AI always proposes "ai".
+    source: Literal["ai", "teacher"] = "ai"
 
 
 class ValidationResult(BaseModel):
@@ -31,10 +34,41 @@ class ValidationResult(BaseModel):
     stats: dict = Field(default_factory=dict)
 
 
+class RubricCriterion(BaseModel):
+    criterion: str
+    max_marks: float = Field(ge=0)
+
+
+class Rubric(BaseModel):
+    question_number: str
+    criteria: list[RubricCriterion]
+    reference_answer: Optional[str] = None
+    # "teacher" only when a teacher-provided marking scheme actually covered
+    # this specific question; otherwise AI-generated, which should carry
+    # lower grading confidence.
+    source: Literal["ai", "teacher"] = "ai"
+
+
+class CriterionGrade(BaseModel):
+    criterion: str
+    max_marks: float = Field(ge=0)
+    awarded_marks: float = Field(ge=0)
+    evidence: str = ""
+
+
+GradingConfidence = Literal["high", "medium", "low"]
+
+
 class GradeResult(BaseModel):
     question_number: str
+    # score/max_score are always computed in Python from `criteria` (or the
+    # deterministic 0 for an unanswered question) - never taken from the
+    # model's own stated total, so they can never be wrong arithmetic.
     score: Optional[float] = None
     max_score: Optional[float] = None
+    criteria: list[CriterionGrade] = Field(default_factory=list)
+    rubric_source: Literal["ai", "teacher"] = "ai"
+    confidence: GradingConfidence = "medium"
     feedback: str
     correct: Optional[bool] = None
     # True when the grader judged the matched answer to be addressing a
@@ -48,6 +82,7 @@ class GradingResult(BaseModel):
     total_score: Optional[float] = None
     total_max_score: Optional[float] = None
     percentage: Optional[float] = None
+    warnings: list[str] = Field(default_factory=list)
 
 
 class AssessmentResult(BaseModel):

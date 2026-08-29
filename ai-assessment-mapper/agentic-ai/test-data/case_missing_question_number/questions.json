@@ -1,0 +1,16 @@
+{
+  "questions": [
+    {
+      "number": "24",
+      "text": "Explain Newton's second law of motion.",
+      "page": 1,
+      "marks": 3
+    },
+    {
+      "number": "25",
+      "text": "Explain Newton's third law of motion.",
+      "page": 1,
+      "marks": 3
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "answers": [
+    {
+      "detected_question_number": "6(a)(i)",
+      "text": "Voltage is proportional to current at constant temperature.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    },
+    {
+      "detected_question_number": "6(a)(ii)",
+      "text": "V = IR.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.25,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    },
+    {
+      "detected_question_number": "6(b)(i)",
+      "text": "Resistance opposes the flow of current.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.4,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    }
+  ]
+}

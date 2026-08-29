@@ -5,6 +5,7 @@ import Topbar from "../components/common/Topbar.jsx";
 import Spinner from "../components/common/Spinner.jsx";
 import SummaryPanel from "../components/summary/SummaryPanel.jsx";
 import ValidationWarnings from "../components/assessment/ValidationWarnings.jsx";
+import ReviewPanel from "../components/assessment/ReviewPanel.jsx";
 import AssessmentLayout from "../components/assessment/AssessmentLayout.jsx";
 import QuestionList from "../components/question/QuestionList.jsx";
 import AnswerViewer from "../components/viewer/AnswerViewer.jsx";
@@ -65,7 +66,11 @@ export default function Assessment() {
     );
   }
 
-  if (!assessment || loadError) {
+  // A stale error must never hide an assessment that already matches the
+  // current route (for example after navigating away from an old 404).
+  const hasCurrentAssessment = assessment?.assessmentId === assessmentId;
+
+  if (!hasCurrentAssessment) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f2f2f0]">
         <ProcessingError message={loadError} onRetry={() => loadAssessmentById(assessmentId)} onBack={() => navigate("/")} />
@@ -80,6 +85,7 @@ export default function Assessment() {
     : "matched";
 
   const questionLabel = selectedMapping?.question_number || selectedMapping?.answer_question_number;
+  const needsReviewMappings = assessment.mappings.filter((m) => m.match_level === MATCH_LEVEL.LOW_CONFIDENCE);
 
   return (
     <div className="flex min-h-screen bg-[#f2f2f0]">
@@ -96,6 +102,8 @@ export default function Assessment() {
           />
 
           <ValidationWarnings validation={assessment.validation} />
+
+          <ReviewPanel mappings={needsReviewMappings} onSelect={setSelectedKey} />
 
           <AssessmentLayout
             left={

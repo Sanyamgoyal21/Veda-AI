@@ -1,0 +1,18 @@
+{
+  "answers": [
+    {
+      "detected_question_number": "2?",
+      "text": "This process is important for living things and involves energy.",
+      "confidence": 0.3,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    }
+  ]
+}

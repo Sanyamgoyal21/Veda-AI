@@ -1,0 +1,32 @@
+{
+  "answers": [
+    {
+      "detected_question_number": "14",
+      "text": "Iron.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.5,
+          "height": 0.05
+        }
+      ]
+    },
+    {
+      "detected_question_number": "15",
+      "text": "Oxygen.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.2,
+          "width": 0.5,
+          "height": 0.05
+        }
+      ]
+    }
+  ]
+}

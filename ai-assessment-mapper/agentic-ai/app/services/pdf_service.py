@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass
 
 import fitz  # PyMuPDF
-from PIL import Image
+from PIL import Image, ImageOps
 
 PDF_RENDER_DPI = int(os.getenv("PDF_RENDER_DPI", "200"))
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
@@ -29,7 +29,16 @@ def load_document_pages(file_path: str) -> list[PageImage]:
         return _render_pdf_pages(file_path)
 
     if ext in IMAGE_EXTENSIONS:
-        image = Image.open(file_path).convert("RGB")
+        image = Image.open(file_path)
+        # Phone photos routinely carry an EXIF orientation tag rather than
+        # storing pixels the way they'll be displayed - PIL does not apply
+        # it automatically, so a photographed answer sheet held sideways or
+        # upside-down would otherwise be sent to the vision model exactly
+        # as mis-oriented as the raw sensor captured it. This is real
+        # rotation correction, not a placeholder: it's a well-defined,
+        # deterministic operation that needs no test corpus to validate,
+        # unlike general deskew (which does, and isn't implemented).
+        image = ImageOps.exif_transpose(image).convert("RGB")
         return [PageImage(page=1, image=image)]
 
     raise ValueError(f"Unsupported file type: {ext}")
@@ -70,6 +79,26 @@ def has_text_layer(file_path: str) -> bool:
         return found
     except Exception:
         return False
+
+
+def extract_full_text(file_path: str) -> str | None:
+    """
+    Returns the full extracted text of a digital PDF, or None if it's not a
+    PDF or has no text layer (a scanned/photographed document). Used so a
+    teacher-provided marking scheme can be read as cheap, exact text instead
+    of re-sending page images on every rubric-generation call.
+    """
+    if os.path.splitext(file_path)[1].lower() != ".pdf":
+        return None
+    try:
+        doc = fitz.open(file_path)
+        pages_text = [page.get_text() for page in doc]
+        doc.close()
+    except Exception:
+        return None
+
+    full_text = "\n".join(pages_text).strip()
+    return full_text or None
 
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")

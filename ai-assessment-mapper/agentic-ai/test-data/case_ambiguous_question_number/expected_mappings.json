@@ -1,0 +1,14 @@
+{
+  "expectedMappings": {
+    "26": null,
+    "27": null
+  },
+  "expectedUnmatchedAnswerIds": [
+    "2?"
+  ],
+  "mockSemantic": {
+    "matched_question_number": null,
+    "confidence": 0.0,
+    "reasoning": "too generic to confidently match either question"
+  }
+}

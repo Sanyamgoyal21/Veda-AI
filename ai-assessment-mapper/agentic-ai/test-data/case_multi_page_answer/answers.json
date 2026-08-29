@@ -1,0 +1,25 @@
+{
+  "answers": [
+    {
+      "detected_question_number": "12",
+      "text": "Evaporation, condensation, and precipitation form a continuous cycle...",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 2,
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.5,
+          "height": 0.3
+        },
+        {
+          "page": 3,
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.5,
+          "height": 0.2
+        }
+      ]
+    }
+  ]
+}

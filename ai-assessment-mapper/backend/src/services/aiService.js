@@ -10,7 +10,11 @@ const config = require("../config/config");
 
 const client = axios.create({
   baseURL: config.aiServiceUrl,
-  timeout: 120000, // vision extraction over several pages can take a while
+  // Grading iterates every answered question sequentially (a rubric call
+  // plus a grading vision call each), so a long exam with 30+ answered
+  // questions can legitimately take several minutes end-to-end - this must
+  // stay well above that, not just above a single vision call's latency.
+  timeout: 600000,
 });
 
 async function processAssessment(questionFilePath, answerFilePath) {
@@ -27,8 +31,22 @@ async function processAssessment(questionFilePath, answerFilePath) {
   return response.data;
 }
 
-async function gradeAssessment(mappings) {
-  const response = await client.post("/api/grade", { mappings });
+async function gradeAssessment(mappings, answerFilePath, markingSchemeFilePath) {
+  const form = new FormData();
+  form.append("mappings", JSON.stringify(mappings));
+  if (answerFilePath) {
+    form.append("answer_file", fs.createReadStream(answerFilePath));
+  }
+  if (markingSchemeFilePath) {
+    form.append("marking_scheme_file", fs.createReadStream(markingSchemeFilePath));
+  }
+
+  const response = await client.post("/api/grade", form, {
+    headers: form.getHeaders(),
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+  });
+
   return response.data;
 }
 

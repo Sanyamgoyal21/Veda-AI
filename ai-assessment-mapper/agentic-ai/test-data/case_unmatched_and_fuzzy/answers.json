@@ -1,0 +1,14 @@
+{
+  "answers": [
+    {"detected_question_number": "5", "text": "Photosynthesis converts light energy into chemical energy.", "confidence": 0.95,
+     "regions": [{"page": 1, "x": 0.1, "y": 0.1, "width": 0.5, "height": 0.1}]},
+    {"detected_question_number": "6", "text": "Respiration releases energy from glucose.", "confidence": 0.9,
+     "regions": [{"page": 1, "x": 0.1, "y": 0.25, "width": 0.5, "height": 0.1}]},
+    {"detected_question_number": "7(4)", "text": "The water cycle includes evaporation, condensation, precipitation.", "confidence": 0.7,
+     "regions": [{"page": 1, "x": 0.1, "y": 0.4, "width": 0.5, "height": 0.1}]},
+    {"detected_question_number": "7(b)", "text": "The carbon cycle includes photosynthesis and respiration.", "confidence": 0.9,
+     "regions": [{"page": 1, "x": 0.1, "y": 0.55, "width": 0.5, "height": 0.1}]},
+    {"detected_question_number": "99", "text": "Stray answer with no corresponding question on the paper.", "confidence": 0.8,
+     "regions": [{"page": 2, "x": 0.1, "y": 0.1, "width": 0.5, "height": 0.1}]}
+  ]
+}

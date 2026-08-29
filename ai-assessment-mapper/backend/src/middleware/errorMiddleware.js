@@ -26,7 +26,12 @@ function errorHandler(err, req, res, next) {
     if (status && status < 500) {
       return res.status(status).json({ error: detail || "The AI service rejected the request" });
     }
-    if (err.code === "ECONNREFUSED" || err.code === "ECONNABORTED") {
+    if (err.code === "ECONNABORTED") {
+      return res.status(504).json({
+        error: "Grading is taking longer than expected for this many questions. Please try again.",
+      });
+    }
+    if (err.code === "ECONNREFUSED") {
       return res.status(503).json({ error: "The AI service is unavailable. Please retry shortly." });
     }
     console.error("AI service error:", detail || err.message);

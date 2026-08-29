@@ -1,0 +1,16 @@
+{
+  "questions": [
+    {
+      "number": "20",
+      "text": "Define reflection.",
+      "page": 1,
+      "marks": 2
+    },
+    {
+      "number": "21",
+      "text": "Define refraction.",
+      "page": 1,
+      "marks": 2
+    }
+  ]
+}

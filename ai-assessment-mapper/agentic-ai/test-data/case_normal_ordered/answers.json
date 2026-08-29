@@ -1,0 +1,46 @@
+{
+  "answers": [
+    {
+      "detected_question_number": "1",
+      "text": "Velocity is the rate of change of displacement.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.1,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    },
+    {
+      "detected_question_number": "2",
+      "text": "Acceleration is the rate of change of velocity.",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.25,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    },
+    {
+      "detected_question_number": "3",
+      "text": "Newton (N).",
+      "confidence": 0.9,
+      "regions": [
+        {
+          "page": 1,
+          "x": 0.1,
+          "y": 0.4,
+          "width": 0.5,
+          "height": 0.1
+        }
+      ]
+    }
+  ]
+}

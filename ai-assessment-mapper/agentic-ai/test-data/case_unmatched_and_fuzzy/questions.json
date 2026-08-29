@@ -1,0 +1,8 @@
+{
+  "questions": [
+    {"number": "5", "text": "Define photosynthesis.", "page": 1, "marks": 3},
+    {"number": "6", "text": "Define respiration.", "page": 1, "marks": 3},
+    {"number": "7(a)", "text": "Explain the water cycle.", "page": 1, "marks": 2},
+    {"number": "7(b)", "text": "Explain the carbon cycle.", "page": 1, "marks": 2}
+  ]
+}
