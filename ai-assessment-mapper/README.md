@@ -27,7 +27,7 @@ Node.js / Express  (API gateway, uploads, temp storage, orchestration)
 Agentic AI (Python, FastAPI)  (agent pipeline)
         │
         ▼
-Vision AI model (OpenAI gpt-4o, vision + forced function-calling)
+Vision AI model (Gemini gemini-2.0-flash, vision + forced function-calling)
 ```
 
 - **frontend/** — React + JavaScript only (no TypeScript). Upload UI,
@@ -290,8 +290,9 @@ UPLOAD_TTL_HOURS=6
 **agentic-ai/.env**
 ```
 PORT=8000
-AI_API_KEY=            # never exposed to the frontend or backend logs
-AI_MODEL=gpt-4o
+AI_API_KEY=            # never exposed to the frontend or backend logs (Gemini key - https://aistudio.google.com/apikey)
+AI_MODEL=gemini-2.0-flash
+AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 MAX_IMAGE_DIMENSION=1600
 PDF_RENDER_DPI=200
 EXTRACTION_CHUNK_SIZE=6      # pages per vision call before a document is split into chunks
@@ -324,12 +325,14 @@ transcription alone loses diagrams, equations, and tables.
 
 ## AI model used
 
-OpenAI `gpt-4o` (vision-capable, forced function-calling for structured JSON
-output on extraction/mapping/rubric/grading calls) via the official `openai`
-Python SDK, called with `temperature=0` throughout for reproducibility. The
-model id is configurable via `AI_MODEL` and the provider is fully isolated in
-`vision_service.py`, so it can be swapped for another vision-capable provider
-without touching any agent.
+Gemini `gemini-2.0-flash` (vision-capable, forced function-calling for
+structured JSON output on extraction/mapping/rubric/grading calls), accessed
+through Gemini's OpenAI-compatible endpoint via the official `openai` Python
+SDK (pointed at `AI_BASE_URL` instead of OpenAI's own endpoint - no separate
+Gemini SDK needed), called with `temperature=0` throughout for
+reproducibility. The model id is configurable via `AI_MODEL` and the provider
+is fully isolated in `vision_service.py`, so it can be swapped again for
+another vision-capable provider without touching any agent.
 
 ## File handling & security
 
