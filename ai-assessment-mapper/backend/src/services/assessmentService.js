@@ -7,11 +7,11 @@ const { v4: uuidv4 } = require("uuid");
 const { ApiError } = require("../utils/validation");
 const fileService = require("./fileService");
 
-const assessments = new Map(); // assessmentId -> { result, questionFileId, answerFileId, markingSchemeFileId, createdAt }
+const assessments = new Map(); // assessmentId -> { result, questionFileId, answerFileId, createdAt }
 
-function create(result, questionFileId, answerFileId, markingSchemeFileId = null) {
+function create(result, questionFileId, answerFileId) {
   const id = uuidv4();
-  assessments.set(id, { result, questionFileId, answerFileId, markingSchemeFileId, createdAt: Date.now() });
+  assessments.set(id, { result, questionFileId, answerFileId, createdAt: Date.now() });
   return id;
 }
 
@@ -33,9 +33,6 @@ function remove(id) {
   const record = get(id);
   fileService.releaseFile(record.questionFileId);
   fileService.releaseFile(record.answerFileId);
-  if (record.markingSchemeFileId) {
-    fileService.releaseFile(record.markingSchemeFileId);
-  }
   assessments.delete(id);
 }
 

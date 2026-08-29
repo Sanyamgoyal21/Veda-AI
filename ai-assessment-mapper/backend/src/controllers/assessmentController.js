@@ -7,25 +7,19 @@ const mappingService = require("../services/mappingService");
 async function processAssessment(req, res, next) {
   try {
     requireFields(req.body, ["questionFileId", "answerFileId"]);
-    const { questionFileId, answerFileId, markingSchemeFileId } = req.body;
+    const { questionFileId, answerFileId } = req.body;
 
     const questionFile = fileService.getFile(questionFileId);
     const answerFile = fileService.getFile(answerFileId);
-    // The marking scheme, if any, is only needed at grading time - just
-    // validate it exists now so a bad fileId fails fast, don't send it to
-    // the AI service until (and unless) the teacher actually grades.
-    if (markingSchemeFileId) {
-      fileService.getFile(markingSchemeFileId);
-    }
 
     const result = await aiService.processAssessment(questionFile.path, answerFile.path);
 
-    const assessmentId = assessmentService.create(result, questionFileId, answerFileId, markingSchemeFileId || null);
+    const assessmentId = assessmentService.create(result, questionFileId, answerFileId);
     const fileMeta = fileService.getFileMetaPair(questionFileId, answerFileId);
 
     res.status(201).json({
       assessmentId,
-      ...mappingService.attachFileUrls(result, assessmentId, fileMeta, Boolean(markingSchemeFileId)),
+      ...mappingService.attachFileUrls(result, assessmentId, fileMeta),
     });
   } catch (err) {
     next(err);
@@ -39,7 +33,7 @@ function getAssessment(req, res, next) {
     const fileMeta = fileService.getFileMetaPair(record.questionFileId, record.answerFileId);
     res.json({
       assessmentId: id,
-      ...mappingService.attachFileUrls(record.result, id, fileMeta, Boolean(record.markingSchemeFileId)),
+      ...mappingService.attachFileUrls(record.result, id, fileMeta),
     });
   } catch (err) {
     next(err);
@@ -68,7 +62,7 @@ function correctMapping(req, res, next) {
     const fileMeta = fileService.getFileMetaPair(record.questionFileId, record.answerFileId);
     res.json({
       assessmentId: id,
-      ...mappingService.attachFileUrls(record.result, id, fileMeta, Boolean(record.markingSchemeFileId)),
+      ...mappingService.attachFileUrls(record.result, id, fileMeta),
     });
   } catch (err) {
     next(err);

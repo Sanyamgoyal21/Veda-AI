@@ -97,12 +97,10 @@ Question Extraction Agent          Answer Extraction Agent
   degenerate bounding boxes, unmatched answers, unanswered questions, and
   low-confidence mappings.
 - **rubric_agent** — builds a per-question marking rubric (2-5 weighted
-  criteria + a reference answer) before any student answer is considered.
-  Uses a teacher-provided marking scheme when one covers the question
-  (`source: "teacher"`), otherwise generates one from the question alone
-  (`source: "ai"`). Criteria marks are deterministically rescaled in Python
-  to sum exactly to the question's marks - the model is never trusted to
-  get that arithmetic right.
+  criteria + a reference answer) from the question alone (`source: "ai"`).
+  Criteria marks are deterministically rescaled in Python to sum exactly to
+  the question's marks - the model is never trusted to get that arithmetic
+  right.
 - **grading_agent** (optional) — only runs when the teacher clicks "Grade
   with AI". Grades **criterion-by-criterion** against the rubric, with the
   student's actual answer image (cropped from the original page, not just
@@ -141,18 +139,6 @@ shared overlap page(s). A deterministic merge step (not an AI call) then:
   overlapping regions), and concatenates non-duplicate text - so an answer
   spanning a chunk boundary is fully reconstructed from both chunks' partial
   views rather than either being duplicated or losing a page.
-
-## Optional marking scheme / model answer upload
-
-A teacher can optionally upload a third document (marking scheme or model
-answer) alongside the question paper and answer sheet. It is not sent to the
-AI service until (and unless) the teacher actually clicks "Grade with AI" -
-uploading it costs nothing extra during initial processing. When present, a
-digital PDF's text is extracted once (free, exact, via PyMuPDF) and reused
-for every question's rubric-generation call rather than re-sending images
-repeatedly; a scanned marking scheme falls back to sending its page images.
-Coverage is judged per-question by the model, not assumed from the file's
-mere presence - a marking scheme rarely covers every single question.
 
 ## Human-in-the-loop mapping correction
 
@@ -303,10 +289,10 @@ EXTRACTION_CHUNK_OVERLAP=1   # pages shared between adjacent chunks
 **Backend** (`/api`)
 ```
 POST   /upload                        multipart "file" -> { fileId, originalName, size, pageCount }
-POST   /assessment/process            { questionFileId, answerFileId, markingSchemeFileId? } -> full assessment result
+POST   /assessment/process            { questionFileId, answerFileId } -> full assessment result
 GET    /assessment/:id                re-fetch a processed assessment
 GET    /assessment/:id/file/:type     stream original file ("question" | "answer")
-POST   /assessment/:id/grade          run optional AI grading (uses the stored answer file + marking scheme, if any)
+POST   /assessment/:id/grade          run optional AI grading (uses the stored answer file)
 DELETE /assessment/:id                delete an assessment and its temp files
 GET    /health                        backend + AI-service reachability
 ```
@@ -315,6 +301,8 @@ GET    /health                        backend + AI-service reachability
 ```
 POST /api/process   multipart question_file + answer_file -> AssessmentResult
 POST /api/grade      multipart mappings (JSON string) + answer_file? + marking_scheme_file? -> GradingResult
+                     (marking_scheme_file is accepted at this layer but never
+                     sent by the app - the teacher-facing upload was removed)
 GET  /health
 ```
 

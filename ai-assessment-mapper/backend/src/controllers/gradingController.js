@@ -10,22 +10,15 @@ async function gradeAssessment(req, res, next) {
     const record = assessmentService.get(id);
 
     const answerFile = fileService.getFile(record.answerFileId);
-    const markingSchemeFile = record.markingSchemeFileId
-      ? fileService.getFile(record.markingSchemeFileId)
-      : null;
 
-    const grading = await aiService.gradeAssessment(
-      record.result.mappings,
-      answerFile.path,
-      markingSchemeFile?.path
-    );
+    const grading = await aiService.gradeAssessment(record.result.mappings, answerFile.path);
     assessmentService.updateGrading(id, grading);
 
     const updated = assessmentService.get(id);
     const fileMeta = fileService.getFileMetaPair(updated.questionFileId, updated.answerFileId);
     res.json({
       assessmentId: id,
-      ...mappingService.attachFileUrls(updated.result, id, fileMeta, Boolean(updated.markingSchemeFileId)),
+      ...mappingService.attachFileUrls(updated.result, id, fileMeta),
     });
   } catch (err) {
     next(err);
@@ -48,7 +41,7 @@ function correctGrade(req, res, next) {
     const fileMeta = fileService.getFileMetaPair(record.questionFileId, record.answerFileId);
     res.json({
       assessmentId: id,
-      ...mappingService.attachFileUrls(record.result, id, fileMeta, Boolean(record.markingSchemeFileId)),
+      ...mappingService.attachFileUrls(record.result, id, fileMeta),
     });
   } catch (err) {
     next(err);

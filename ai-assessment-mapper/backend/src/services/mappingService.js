@@ -187,7 +187,7 @@ function applyGradeCorrection(assessment, questionNumber, { score, feedback } = 
   return assessment;
 }
 
-function attachFileUrls(assessment, assessmentId, fileMeta = {}, hasMarkingScheme = false) {
+function attachFileUrls(assessment, assessmentId, fileMeta = {}) {
   return {
     ...assessment,
     files: {
@@ -195,7 +195,6 @@ function attachFileUrls(assessment, assessmentId, fileMeta = {}, hasMarkingSchem
       answerSheetUrl: `/api/assessment/${assessmentId}/file/answer`,
       questionPaper: fileMeta.question,
       answerSheet: fileMeta.answer,
-      hasMarkingScheme,
     },
     summary: buildSummary(assessment),
   };

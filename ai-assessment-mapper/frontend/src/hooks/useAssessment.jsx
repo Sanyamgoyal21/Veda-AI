@@ -7,9 +7,8 @@ const AssessmentContext = createContext(null);
 export function AssessmentProvider({ children }) {
   const [questionFile, setQuestionFile] = useState(null);
   const [answerFile, setAnswerFile] = useState(null);
-  const [markingSchemeFile, setMarkingSchemeFile] = useState(null);
-  const [uploading, setUploading] = useState({ question: false, answer: false, markingScheme: false });
-  const [uploadErrors, setUploadErrors] = useState({ question: null, answer: null, markingScheme: null });
+  const [uploading, setUploading] = useState({ question: false, answer: false });
+  const [uploadErrors, setUploadErrors] = useState({ question: null, answer: null });
 
   const [assessment, setAssessment] = useState(null);
   const [processingError, setProcessingError] = useState(null);
@@ -26,7 +25,6 @@ export function AssessmentProvider({ children }) {
   const SETTERS = {
     question: setQuestionFile,
     answer: setAnswerFile,
-    markingScheme: setMarkingSchemeFile,
   };
 
   const uploadSlot = useCallback(async (slot, file) => {
@@ -48,7 +46,6 @@ export function AssessmentProvider({ children }) {
 
   const uploadQuestionPaper = useCallback((file) => uploadSlot("question", file), [uploadSlot]);
   const uploadAnswerSheet = useCallback((file) => uploadSlot("answer", file), [uploadSlot]);
-  const uploadMarkingScheme = useCallback((file) => uploadSlot("markingScheme", file), [uploadSlot]);
 
   const removeQuestionPaper = useCallback(() => {
     setQuestionFile(null);
@@ -60,22 +57,13 @@ export function AssessmentProvider({ children }) {
     setUploadErrors((prev) => ({ ...prev, answer: null }));
   }, []);
 
-  const removeMarkingScheme = useCallback(() => {
-    setMarkingSchemeFile(null);
-    setUploadErrors((prev) => ({ ...prev, markingScheme: null }));
-  }, []);
-
   const startMapping = useCallback(async () => {
     if (!questionFile || !answerFile) {
       throw new Error("Both files must be uploaded before mapping can start.");
     }
     setProcessingError(null);
     try {
-      const result = await api.processAssessment(
-        questionFile.fileId,
-        answerFile.fileId,
-        markingSchemeFile?.fileId
-      );
+      const result = await api.processAssessment(questionFile.fileId, answerFile.fileId);
       assessmentLoadSequence.current += 1;
       setLoadError(null);
       setAssessment(result);
@@ -84,7 +72,7 @@ export function AssessmentProvider({ children }) {
       setProcessingError(err.message);
       throw err;
     }
-  }, [questionFile, answerFile, markingSchemeFile]);
+  }, [questionFile, answerFile]);
 
   const loadAssessmentById = useCallback(async (id) => {
     const sequence = ++assessmentLoadSequence.current;
@@ -158,10 +146,9 @@ export function AssessmentProvider({ children }) {
     assessmentLoadSequence.current += 1;
     setQuestionFile(null);
     setAnswerFile(null);
-    setMarkingSchemeFile(null);
     setAssessment(null);
     setProcessingError(null);
-    setUploadErrors({ question: null, answer: null, markingScheme: null });
+    setUploadErrors({ question: null, answer: null });
   }, []);
 
   const mappingForQuestion = useCallback(
@@ -201,15 +188,12 @@ export function AssessmentProvider({ children }) {
     () => ({
       questionFile,
       answerFile,
-      markingSchemeFile,
       uploading,
       uploadErrors,
       uploadQuestionPaper,
       uploadAnswerSheet,
-      uploadMarkingScheme,
       removeQuestionPaper,
       removeAnswerSheet,
-      removeMarkingScheme,
       bothUploaded: Boolean(questionFile && answerFile),
 
       assessment,
@@ -239,15 +223,12 @@ export function AssessmentProvider({ children }) {
     [
       questionFile,
       answerFile,
-      markingSchemeFile,
       uploading,
       uploadErrors,
       uploadQuestionPaper,
       uploadAnswerSheet,
-      uploadMarkingScheme,
       removeQuestionPaper,
       removeAnswerSheet,
-      removeMarkingScheme,
       assessment,
       startMapping,
       loadAssessmentById,
