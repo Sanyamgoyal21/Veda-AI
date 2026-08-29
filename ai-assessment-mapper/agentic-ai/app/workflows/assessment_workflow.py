@@ -28,7 +28,9 @@ def process_assessment(question_file_path: str, answer_file_path: str) -> Assess
     answer_pages = load_document_pages(answer_file_path)
 
     question_result = question_extraction_agent.run(question_pages, file_path=question_file_path)
-    answer_result = answer_extraction_agent.run(answer_pages, file_path=answer_file_path)
+    answer_result = answer_extraction_agent.run(
+        answer_pages, file_path=answer_file_path, questions=question_result.questions
+    )
 
     mappings = mapping_agent.run(question_result.questions, answer_result.answers)
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState, useCallback } from "react";
+import React, { createContext, useContext, useMemo, useRef, useState, useCallback } from "react";
 import * as api from "../services/api";
 import { MATCH_LEVEL } from "../constants";
 
@@ -15,6 +15,9 @@ export function AssessmentProvider({ children }) {
   const [processingError, setProcessingError] = useState(null);
   const [gradingInProgress, setGradingInProgress] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  // Monotonic request identity prevents an old assessment GET from writing
+  // its result/error after the user has processed or opened a newer one.
+  const assessmentLoadSequence = useRef(0);
   const [correctingMapping, setCorrectingMapping] = useState(false);
   const [correctionError, setCorrectionError] = useState(null);
   const [correctingGrade, setCorrectingGrade] = useState(false);
@@ -73,6 +76,8 @@ export function AssessmentProvider({ children }) {
         answerFile.fileId,
         markingSchemeFile?.fileId
       );
+      assessmentLoadSequence.current += 1;
+      setLoadError(null);
       setAssessment(result);
       return result;
     } catch (err) {
@@ -82,13 +87,18 @@ export function AssessmentProvider({ children }) {
   }, [questionFile, answerFile, markingSchemeFile]);
 
   const loadAssessmentById = useCallback(async (id) => {
+    const sequence = ++assessmentLoadSequence.current;
     setLoadError(null);
     try {
       const result = await api.getAssessment(id);
-      setAssessment(result);
+      if (sequence === assessmentLoadSequence.current) {
+        setAssessment(result);
+      }
       return result;
     } catch (err) {
-      setLoadError(err.message);
+      if (sequence === assessmentLoadSequence.current) {
+        setLoadError(err.message);
+      }
       throw err;
     }
   }, []);
@@ -145,6 +155,7 @@ export function AssessmentProvider({ children }) {
   );
 
   const reset = useCallback(() => {
+    assessmentLoadSequence.current += 1;
     setQuestionFile(null);
     setAnswerFile(null);
     setMarkingSchemeFile(null);

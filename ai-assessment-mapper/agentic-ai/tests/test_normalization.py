@@ -30,6 +30,14 @@ def test_bare_numbers_untouched():
     assert normalize_question_number("1") == "1"
     assert normalize_question_number("  3  ") == "3"
     assert normalize_question_number("Q.2") == "2"
+    assert normalize_question_number("Ans 2") == "2"
+
+
+def test_non_question_labels_are_rejected():
+    assert normalize_question_number("a") == ""
+    assert normalize_question_number("b") == ""
+    assert normalize_question_number("f1") == ""
+    assert normalize_question_number("x2") == ""
 
 
 def test_continuation_label_normalizes_same_as_bare_number():

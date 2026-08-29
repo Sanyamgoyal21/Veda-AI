@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 from app.services.pdf_service import PageImage
 
-CHUNK_SIZE = int(os.getenv("EXTRACTION_CHUNK_SIZE", "6"))
+CHUNK_SIZE = int(os.getenv("EXTRACTION_CHUNK_SIZE", "3"))
 CHUNK_OVERLAP = int(os.getenv("EXTRACTION_CHUNK_OVERLAP", "1"))
 
 

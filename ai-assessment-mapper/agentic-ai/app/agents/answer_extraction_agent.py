@@ -5,7 +5,9 @@ from collections import defaultdict
 from pydantic import ValidationError
 
 from app.prompts import answer_prompt
-from app.schemas.answer_schema import Answer, AnswerExtractionResult, AnswerRegion
+from app.schemas.answer_schema import Answer, AnswerExtractionResult, AnswerRegion, AnswerSegment
+from app.schemas.question_schema import Question
+from app.services.answer_segmentation import group_segments
 from app.services import vision_service
 from app.services.chunking import chunk_pages
 from app.services.pdf_service import PageImage, refine_text_region
@@ -16,23 +18,36 @@ from app.utils.normalization import normalize_question_number
 OVERSIZED_REGION_AREA = 0.9
 
 
-def _extract_raw_items(pages: list[PageImage]) -> tuple[list[dict], list[str]]:
+def _extract_raw_items(pages: list[PageImage], question_index: list[dict] | None = None) -> tuple[list[dict], list[str]]:
     """Runs extraction chunk-by-chunk (a single chunk for short documents)."""
     chunks = chunk_pages(pages)
+    # Each overlap page is context for two calls but must have exactly one
+    # authoritative producer, otherwise conflicting interpretations get
+    # interleaved during stateful grouping. Prefer a non-overlap occurrence;
+    # for boundary pages shared by both windows, deterministically use first.
+    page_owner: dict[int, int] = {}
+    for chunk_index, chunk in enumerate(chunks):
+        for page in chunk.pages:
+            if page.page not in page_owner or page.page not in chunk.overlap_pages:
+                page_owner[page.page] = chunk_index
     items: list[dict] = []
     warnings: list[str] = []
 
     for chunk_index, chunk in enumerate(chunks):
         raw = vision_service.run_structured_extraction(
             system_prompt=answer_prompt.SYSTEM_PROMPT,
-            user_prompt=answer_prompt.build_user_prompt(len(chunk.pages)),
+            user_prompt=answer_prompt.build_user_prompt(len(chunk.pages), question_index),
             pages=chunk.pages,
             tool_name=answer_prompt.TOOL_NAME,
             tool_description=answer_prompt.TOOL_DESCRIPTION,
             input_schema=answer_prompt.INPUT_SCHEMA,
         )
         warnings.extend(raw.get("warnings", []))
-        for item in raw.get("answers", []):
+        for item in raw.get("segments", raw.get("answers", [])):
+            raw_region = item.get("region") or (item.get("regions") or [{}])[0]
+            page = raw_region.get("page")
+            if page and page_owner.get(page) != chunk_index:
+                continue
             items.append({**item, "_chunk_index": chunk_index})
 
     return items, warnings
@@ -143,8 +158,42 @@ def _dedupe_and_merge_answers(items: list[dict]) -> tuple[list[dict], list[str]]
     return merged, warnings
 
 
-def run(pages: list[PageImage], file_path: str | None = None) -> AnswerExtractionResult:
-    raw_items, extraction_warnings = _extract_raw_items(pages)
+def run(pages: list[PageImage], file_path: str | None = None,
+        questions: list[Question] | None = None) -> AnswerExtractionResult:
+    valid_numbers = [q.normalized_number for q in (questions or []) if q.normalized_number]
+    question_index = [{"number": q.normalized_number, "text": q.text} for q in (questions or [])]
+    raw_items, extraction_warnings = _extract_raw_items(pages, question_index)
+
+    # New segment pipeline. Legacy `answers` payloads remain supported below
+    # for stored fixtures and provider rollouts.
+    if raw_items and any("segment_type" in item for item in raw_items):
+        segments: list[AnswerSegment] = []
+        for index, item in enumerate(raw_items):
+            raw_region = item.get("region") or (item.get("regions") or [None])[0]
+            if not raw_region:
+                extraction_warnings.append(f"Skipped segment {index}: no region")
+                continue
+            page = raw_region.get("page", 0)
+            try:
+                bbox = AnswerRegion(**{**raw_region, "original_page": page})
+                segments.append(AnswerSegment(
+                    id=f"segment-{page}-{item.get('visual_order', index)}-{index}",
+                    page=page, original_page=page, text=item.get("text", ""),
+                    detected_question_number=item.get("detected_question_number"),
+                    normalized_question_number=normalize_question_number(item.get("detected_question_number") or ""),
+                    question_number_confidence=item.get("question_number_confidence", 0), bbox=bbox,
+                    segment_confidence=item.get("segment_confidence", .5),
+                    segment_type=item.get("segment_type", "UNKNOWN"),
+                    continuation_likely=item.get("continuation_likely", False),
+                    continuation_confidence=item.get("continuation_confidence", 0),
+                    visual_order=item.get("visual_order", index), has_diagram=item.get("has_diagram", False),
+                    has_handwriting=item.get("has_handwriting", True)))
+            except ValidationError as exc:
+                extraction_warnings.append(f"Skipped malformed answer segment: {exc}")
+        answers, grouping_warnings = group_segments(segments, set(valid_numbers))
+        return AnswerExtractionResult(answers=answers, page_count=len(pages),
+                                      warnings=extraction_warnings + grouping_warnings)
+
     merged_items, merge_warnings = _dedupe_and_merge_answers(raw_items)
     warnings: list[str] = extraction_warnings + merge_warnings
 
@@ -187,6 +236,7 @@ def run(pages: list[PageImage], file_path: str | None = None) -> AnswerExtractio
 
         try:
             answer = Answer(
+                id=f"answer-q{normalize_question_number(item['detected_question_number'])}",
                 detected_question_number=item["detected_question_number"],
                 normalized_question_number=normalize_question_number(
                     item["detected_question_number"]
@@ -194,6 +244,7 @@ def run(pages: list[PageImage], file_path: str | None = None) -> AnswerExtractio
                 text=item["text"],
                 confidence=item.get("confidence", 0.5),
                 regions=regions,
+                pages=sorted({r.page for r in regions}),
             )
         except (ValidationError, KeyError) as exc:
             warnings.append(f"Skipped malformed answer entry: {exc}")

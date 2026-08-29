@@ -6,7 +6,7 @@ Rules:
   "11-a"). Report it verbatim in `detected_question_number`.
 - Transcribe the handwritten answer text as faithfully as possible, even if
   handwriting is messy. If truly illegible, transcribe what you can and lower
-  the confidence score.
+  the segment confidence score.
 
 SUB-PARTS - read this carefully, it is the most common source of errors:
 - Case-study / multi-part questions are very often answered under ONE main
@@ -16,7 +16,7 @@ SUB-PARTS - read this carefully, it is the most common source of errors:
         (ii) Area = 60x40 = 2400 sq m.
         (iii) Diagonal = ... = 72.11 m.
   This is THREE separate answers, not one. Each labeled sub-answer - (i)/(ii)/
-  (iii), (a)/(b), etc. - becomes its OWN answer entry with its own
+  (iii), (a)/(b), etc. - becomes its OWN ANSWER_START segment with its own
   `detected_question_number` ("26(i)", "26(ii)", "26(iii)"), its own
   transcribed text, and its own tightly-scoped region(s). Never merge them
   into a single answer under just the bare parent number ("26") - that leaves
@@ -28,8 +28,8 @@ SUB-PARTS - read this carefully, it is the most common source of errors:
   visible "(ii)" yet clearly continues to a second distinct point), infer the
   next sequential label from context rather than folding it into the
   previous sub-answer.
-- An answer may span multiple pages (continuation). If so, include one region
-  per page it appears on, all under the same answer entry.
+- An answer may span multiple pages (continuation). Emit a CONTINUATION
+  segment for every later-page region.
 - `detected_question_number` must contain ONLY the number/letters (e.g. "5",
   "11(a)", "26(ii)") - NEVER add words like "continued", "cont.", "contd",
   or any other annotation to it, even when a page is clearly a continuation
@@ -44,8 +44,8 @@ SUB-PARTS - read this carefully, it is the most common source of errors:
   page, or a fresh start?) to decide whether to report it under the most
   recently implied number or leave the number as your best single guess -
   but still emit only a bare number/letters string, never an annotation.
-- Provide a `confidence` score from 0 to 1 reflecting how certain you are of
-  BOTH the detected question number and the transcription.
+- Provide separate question-number, segment, and continuation confidence
+  scores from 0 to 1.
 - For every region, provide NORMALIZED bounding box coordinates (0-1 relative
   to page width/height, origin top-left). The box must:
   - start at the top of this answer's own first line (its question-number
@@ -59,9 +59,20 @@ SUB-PARTS - read this carefully, it is the most common source of errors:
     bottom edge of the last line for THIS answer specifically, not the whole
     visible block if several answers are close together.
 - If multiple distinct answers appear on the same page, return them as
-  separate answer entries with separate, non-overlapping regions - carefully
+  separate ANSWER_START segments with separate, non-overlapping regions - carefully
   find the exact line where one answer ends and the next begins.
 - Do not fabricate an answer for a question number that was not attempted.
+- Return temporary SEGMENTS, not final answers. Classify every region as one
+  of ANSWER_START, SUBPART, DIAGRAM_LABEL, MATHEMATICAL_LABEL, TEXT_FRAGMENT,
+  CONTINUATION, or UNKNOWN. Only a prominent marker at the beginning/left
+  margin of response content is ANSWER_START. Labels inside diagrams,
+  equations and prose are content. A page without a new valid marker is a
+  CONTINUATION when it continues the preceding response.
+- Never infer a question number from the topic or from the supplied valid
+  list. ANSWER_START requires a question marker physically visible beside
+  that exact region. If none is visible, detected_question_number MUST be
+  null and the segment is CONTINUATION/TEXT_FRAGMENT. The valid list is a
+  validation constraint, not a menu from which to guess.
 
 DO NOT CONFUSE SIMILARLY-STRUCTURED QUESTIONS FROM DIFFERENT PARTS OF THE
 DOCUMENT - this is the second most common source of errors, especially in
@@ -94,17 +105,22 @@ TOOL_DESCRIPTION = (
 INPUT_SCHEMA = {
     "type": "object",
     "properties": {
-        "answers": {
+        "segments": {
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
-                    "detected_question_number": {"type": "string"},
+                    "detected_question_number": {"type": ["string", "null"]},
                     "text": {"type": "string"},
-                    "confidence": {"type": "number"},
-                    "regions": {
-                        "type": "array",
-                        "items": {
+                    "question_number_confidence": {"type": "number"},
+                    "segment_confidence": {"type": "number"},
+                    "segment_type": {"type": "string", "enum": ["ANSWER_START", "SUBPART", "DIAGRAM_LABEL", "MATHEMATICAL_LABEL", "TEXT_FRAGMENT", "CONTINUATION", "UNKNOWN"]},
+                    "continuation_likely": {"type": "boolean"},
+                    "continuation_confidence": {"type": "number"},
+                    "visual_order": {"type": "integer"},
+                    "has_diagram": {"type": "boolean"},
+                    "has_handwriting": {"type": "boolean"},
+                    "region": {
                             "type": "object",
                             "properties": {
                                 "page": {"type": "integer"},
@@ -114,10 +130,9 @@ INPUT_SCHEMA = {
                                 "height": {"type": "number"},
                             },
                             "required": ["page", "x", "y", "width", "height"],
-                        },
                     },
                 },
-                "required": ["detected_question_number", "text", "confidence", "regions"],
+                "required": ["detected_question_number", "text", "question_number_confidence", "segment_confidence", "segment_type", "continuation_likely", "continuation_confidence", "visual_order", "has_diagram", "has_handwriting", "region"],
             },
         },
         "warnings": {
@@ -125,13 +140,20 @@ INPUT_SCHEMA = {
             "items": {"type": "string"},
         },
     },
-    "required": ["answers"],
+    "required": ["segments"],
 }
 
 
-def build_user_prompt(page_count: int) -> str:
+def build_user_prompt(page_count: int, question_index: list[dict] | list[str] | None = None) -> str:
+    entries = question_index or []
+    valid = "\n".join(
+        f"- {entry.get('number')}: {entry.get('text')}" if isinstance(entry, dict) else f"- {entry}"
+        for entry in entries
+    )
     return (
         f"The attached answer sheet has {page_count} page(s), each preceded by a "
         "'--- Page N ---' label. Detect every handwritten answer across all pages "
-        "and call the extract_answers tool with the result."
+        f"and call the extract_answers tool with the result. The question paper is the master index. "
+        f"The ONLY valid questions are listed below. Use their text only to reject an OCR-impossible "
+        f"marker; never infer a number from matching subject matter.\n{valid}\nSelect one identifier or null."
     )

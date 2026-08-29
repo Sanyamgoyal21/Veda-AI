@@ -9,7 +9,7 @@ Examples -> "11", "11(a)", "26(ii)", "11(a)(i)"
 import re
 
 _CLEAN_RE = re.compile(r"[\s._]+")
-_Q_PREFIX_RE = re.compile(r"^q\.?\s*", re.IGNORECASE)
+_Q_PREFIX_RE = re.compile(r"^(?:q(?:uestion)?|ans(?:wer)?)\.?\s*[-:]?\s*", re.IGNORECASE)
 _HYPHEN_GROUP_RE = re.compile(r"^(\d+)\s*-\s*([a-zA-Z0-9]+)$")
 _NUMBER_PREFIX_RE = re.compile(r"^(\d+)(.*)$")
 # Sub-part groups allow digits too (not just letters): handwriting/OCR
@@ -47,14 +47,23 @@ def normalize_question_number(raw: str) -> str:
 
     match = _NUMBER_PREFIX_RE.match(value)
     if not match:
-        # Doesn't even start with a number - fall back to a plain slug.
-        return re.sub(r"[^a-zA-Z0-9]", "", value).lower()
+        # A lone (a), f1, x2, diagram label, etc. is not a question number.
+        # Returning a slug here was the source of many false unmatched answers.
+        return ""
 
     number, rest = match.groups()
     groups = [g for g in _LETTER_GROUP_RE.findall(rest) if len(g) <= _MAX_SUBPART_LABEL_LENGTH]
     if not groups:
         return number
     return number + "".join(f"({g.lower()})" for g in groups)
+
+
+def is_question_number_candidate(raw: str) -> bool:
+    """True only when `raw` has the shape of a real numbered question marker."""
+    if not raw:
+        return False
+    value = _Q_PREFIX_RE.sub("", raw.strip())
+    return bool(re.match(r"^\s*\d+", value)) and bool(normalize_question_number(raw))
 
 
 _ORDER_KEY_RE = re.compile(r"^(\d+)((?:\([a-z0-9]+\))*)$")

@@ -66,7 +66,11 @@ export default function Assessment() {
     );
   }
 
-  if (!assessment || loadError) {
+  // A stale error must never hide an assessment that already matches the
+  // current route (for example after navigating away from an old 404).
+  const hasCurrentAssessment = assessment?.assessmentId === assessmentId;
+
+  if (!hasCurrentAssessment) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f2f2f0]">
         <ProcessingError message={loadError} onRetry={() => loadAssessmentById(assessmentId)} onBack={() => navigate("/")} />

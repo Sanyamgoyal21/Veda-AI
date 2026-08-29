@@ -1,0 +1,110 @@
+"""Deterministic segment validation, continuation scoring and answer grouping."""
+import logging
+from collections import defaultdict
+
+from app.schemas.answer_schema import Answer, AnswerRegion, AnswerSegment
+from app.utils.normalization import normalize_question_number
+
+logger = logging.getLogger(__name__)
+
+
+def _continuation_score(segment: AnswerSegment, has_active: bool) -> float:
+    """Evidence-weighted score; each term has a concrete observable meaning."""
+    if not has_active:
+        return 0.0
+    score = 0.45  # no validated new marker
+    if segment.continuation_likely:
+        score += 0.20
+    score += 0.20 * segment.continuation_confidence
+    if segment.segment_type in {"CONTINUATION", "TEXT_FRAGMENT", "DIAGRAM_LABEL", "MATHEMATICAL_LABEL"}:
+        score += 0.15
+    if segment.has_diagram:
+        score += 0.05
+    return min(1.0, score)
+
+
+def group_segments(segments: list[AnswerSegment], valid_numbers: set[str]) -> tuple[list[Answer], list[str]]:
+    """Group content only after marker validation against the question paper."""
+    ordered = sorted(segments, key=lambda s: (s.original_page, s.visual_order, s.bbox.y))
+    unique: list[AnswerSegment] = []
+    for segment in ordered:
+        duplicate = any(
+            segment.original_page == old.original_page
+            and _iou(segment.bbox, old.bbox) >= 0.4
+            and (segment.text.strip() in old.text.strip() or old.text.strip() in segment.text.strip())
+            for old in unique
+        )
+        if not duplicate:
+            unique.append(segment)
+    ordered = unique
+    grouped: dict[str, list[AnswerSegment]] = defaultdict(list)
+    first_seen: list[str] = []
+    active: str | None = None
+    warnings: list[str] = []
+
+    for segment in ordered:
+        candidate = normalize_question_number(segment.detected_question_number or "")
+        valid_start = (
+            segment.segment_type in {"ANSWER_START", "SUBPART"}
+            and candidate in valid_numbers
+            # Handwritten but physically visible markers are often assigned
+            # moderate OCR confidence. Classification + master-index +
+            # content grounding carry more signal than a high numeric cutoff.
+            and segment.question_number_confidence >= 0.40
+        )
+        if valid_start:
+            active = candidate
+            if active not in first_seen:
+                first_seen.append(active)
+            decision = "NEW_ANSWER"
+            score = 0.0
+        else:
+            score = _continuation_score(segment, active is not None)
+            if active is None:
+                # Content before the first trustworthy marker is retained as
+                # an extraction warning, never promoted to a fake Answer.
+                warnings.append(
+                    f"Ignored unanchored content on page {segment.original_page}; "
+                    f"candidate '{segment.detected_question_number or 'none'}' was not a valid answer start"
+                )
+                logger.info("answer_segment", extra={"page": segment.original_page, "detected": candidate or None,
+                            "continuation_score": score, "decision": "UNANCHORED_CONTENT"})
+                continue
+            decision = "CONTINUATION" if score >= 0.60 else "CONTENT"
+
+        grouped[active].append(segment)
+        logger.info("answer_segment", extra={"page": segment.original_page,
+                    "detected": segment.detected_question_number, "previous_answer": active,
+                    "continuation_score": round(score, 3), "decision": decision,
+                    "grouped_into": active})
+
+    answers: list[Answer] = []
+    for number in first_seen:
+        parts = grouped[number]
+        regions: list[AnswerRegion] = []
+        texts: list[str] = []
+        for part in parts:
+            region = part.bbox.model_copy(update={"page": part.original_page, "original_page": part.original_page})
+            # Overlapping-window duplicates have the same page and near-identical box.
+            if not any(_iou(region, old) >= 0.4 for old in regions):
+                regions.append(region)
+            text = part.text.strip()
+            if text and not any(text in old or old in text for old in texts):
+                texts.append(text)
+        pages = sorted({r.page for r in regions})
+        confidence = min((p.segment_confidence for p in parts), default=0.5)
+        answers.append(Answer(id=f"answer-q{number}", detected_question_number=number,
+                              normalized_question_number=number, text="\n\n".join(texts),
+                              confidence=confidence, regions=regions, pages=pages))
+    return answers, warnings
+
+
+def _iou(a: AnswerRegion, b: AnswerRegion) -> float:
+    if a.page != b.page:
+        return 0.0
+    x0, y0 = max(a.x, b.x), max(a.y, b.y)
+    x1, y1 = min(a.x + a.width, b.x + b.width), min(a.y + a.height, b.y + b.height)
+    if x1 <= x0 or y1 <= y0:
+        return 0.0
+    intersection = (x1 - x0) * (y1 - y0)
+    return intersection / (a.area + b.area - intersection)

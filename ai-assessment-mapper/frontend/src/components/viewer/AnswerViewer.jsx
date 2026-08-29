@@ -25,6 +25,7 @@ export default function AnswerViewer({ fileUrl, fileMeta, activeKey, regions = [
 
   const isPdf = fileMeta?.mimeType === "application/pdf";
   const relevantPages = pagesFromRegions(regions);
+  const answerPageIndex = relevantPages.indexOf(currentPage);
 
   useEffect(() => {
     setCurrentPage(relevantPages[0] || 1);
@@ -100,6 +101,9 @@ export default function AnswerViewer({ fileUrl, fileMeta, activeKey, regions = [
 
       {relevantPages.length > 1 && (
         <div className="flex items-center gap-2 px-4 pb-2 flex-wrap">
+          <span className="text-[11px] text-white/70 mr-1">
+            Answer page {answerPageIndex >= 0 ? answerPageIndex + 1 : 1} of {relevantPages.length}
+          </span>
           {relevantPages.map((page, index) => (
             <button
               key={page}
@@ -108,7 +112,7 @@ export default function AnswerViewer({ fileUrl, fileMeta, activeKey, regions = [
                 page === currentPage ? "bg-brand-orange text-white" : "bg-white/10 text-white/70 hover:bg-white/20"
               }`}
             >
-              Region {index + 1} · Page {page}
+              Page {page}
             </button>
           ))}
         </div>
