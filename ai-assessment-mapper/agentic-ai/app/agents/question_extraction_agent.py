@@ -233,6 +233,15 @@ def _merge_mcq_option_siblings(items: list[dict]) -> tuple[list[dict], list[str]
     return result, warnings
 
 
+def _union_bbox_dicts(a: dict, b: dict) -> dict:
+    """Smallest bbox containing both inputs - keeps refine_text_region's
+    precise text-only match from cropping out an accompanying diagram."""
+    x0, y0 = min(a["x"], b["x"]), min(a["y"], b["y"])
+    x1 = max(a["x"] + a["width"], b["x"] + b["width"])
+    y1 = max(a["y"] + a["height"], b["y"] + b["height"])
+    return {**a, "x": x0, "y": y0, "width": min(1.0 - x0, x1 - x0), "height": min(1.0 - y0, y1 - y0)}
+
+
 def run(pages: list[PageImage], file_path: str | None = None) -> QuestionExtractionResult:
     raw_items, extraction_warnings = _extract_raw_items(pages)
     expanded_items = [part for item in raw_items for part in _split_bundled_subparts(item)]
@@ -248,7 +257,11 @@ def run(pages: list[PageImage], file_path: str | None = None) -> QuestionExtract
         if file_path and item.get("text"):
             refined = refine_text_region(file_path, item.get("page", 0), item["text"])
             if refined:
-                raw_bbox = refined
+                # A diagram can extend beyond the exact question text -
+                # union with the AI's own original guess (told to span the
+                # question's text AND its diagram together) rather than
+                # replacing outright, so the diagram never gets cropped out.
+                raw_bbox = _union_bbox_dicts(raw_bbox, refined) if (item.get("has_diagram") and raw_bbox) else refined
         if raw_bbox:
             try:
                 bbox = QuestionBoundingBox(**raw_bbox)
@@ -266,6 +279,7 @@ def run(pages: list[PageImage], file_path: str | None = None) -> QuestionExtract
                 page=item["page"],
                 order=0,  # placeholder - real order is assigned deterministically below
                 bounding_box=bbox,
+                has_diagram=bool(item.get("has_diagram")),
             )
         except (ValidationError, KeyError) as exc:
             warnings.append(f"Skipped malformed question entry: {exc}")

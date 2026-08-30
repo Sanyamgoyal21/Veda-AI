@@ -98,7 +98,16 @@ def group_segments(
             if file_path and part.text.strip():
                 refined = refine_text_region(file_path, part.original_page, part.text)
                 if refined:
-                    region = region.model_copy(update={**refined, "original_page": part.original_page})
+                    refined_region = AnswerRegion(**{**refined, "original_page": part.original_page})
+                    # A diagram can extend beyond the exact transcribed
+                    # text - refine_text_region only ever bounds the TEXT it
+                    # was given, so replacing the region outright would crop
+                    # any accompanying diagram out of the highlighted area.
+                    # Union with the AI's own original guess instead (it was
+                    # told to span this answer's ENTIRE content, diagram
+                    # included) so the precision gain never costs the
+                    # diagram; text-only answers still get the tight box.
+                    region = _union_regions(region, refined_region) if part.has_diagram else refined_region
             # Overlapping-window duplicates have the same page and near-identical box.
             if not any(_iou(region, old) >= 0.4 for old in regions):
                 regions.append(region)
@@ -109,7 +118,8 @@ def group_segments(
         confidence = min((p.segment_confidence for p in parts), default=0.5)
         answers.append(Answer(id=f"answer-q{number}", detected_question_number=number,
                               normalized_question_number=number, text="\n\n".join(texts),
-                              confidence=confidence, regions=regions, pages=pages))
+                              confidence=confidence, regions=regions, pages=pages,
+                              has_diagram=any(p.has_diagram for p in parts)))
     return answers, warnings
 
 
@@ -122,3 +132,11 @@ def _iou(a: AnswerRegion, b: AnswerRegion) -> float:
         return 0.0
     intersection = (x1 - x0) * (y1 - y0)
     return intersection / (a.area + b.area - intersection)
+
+
+def _union_regions(a: AnswerRegion, b: AnswerRegion) -> AnswerRegion:
+    """Smallest region containing both inputs - used to keep a diagram that
+    sits outside a precisely-matched text region from being cropped away."""
+    x0, y0 = min(a.x, b.x), min(a.y, b.y)
+    x1, y1 = max(a.x + a.width, b.x + b.width), max(a.y + a.height, b.y + b.height)
+    return a.model_copy(update={"x": x0, "y": y0, "width": min(1.0 - x0, x1 - x0), "height": min(1.0 - y0, y1 - y0)})

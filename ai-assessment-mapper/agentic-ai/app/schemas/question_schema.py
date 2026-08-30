@@ -34,6 +34,11 @@ class Question(BaseModel):
     page: int = Field(ge=1)
     order: int
     bounding_box: Optional[QuestionBoundingBox] = None
+    # True when a diagram/figure accompanies this question - the region
+    # (see question_extraction_agent) is unioned with the model's own wider
+    # guess rather than shrunk to the text alone, so precise text-matching
+    # never crops the diagram out of the highlighted area.
+    has_diagram: bool = False
 
 
 class QuestionExtractionResult(BaseModel):

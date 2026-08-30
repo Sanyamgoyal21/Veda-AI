@@ -66,6 +66,10 @@ class Answer(BaseModel):
     confidence: float = Field(ge=0, le=1)
     regions: list[AnswerRegion]
     pages: list[int] = Field(default_factory=list)
+    # True when any constituent segment contained a diagram - lets grading
+    # know a cropped answer image may include a diagram to evaluate, not
+    # just handwritten text.
+    has_diagram: bool = False
 
 
 class AnswerExtractionResult(BaseModel):

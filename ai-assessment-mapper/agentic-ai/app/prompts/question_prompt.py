@@ -60,16 +60,30 @@ MULTIPLE-CHOICE QUESTIONS - do not confuse answer OPTIONS with sub-parts:
   separate from (a)?" - yes means sub-parts (like 21(i)/21(ii) above); "no,
   they're just alternative values for the same one question" means MCQ.
 
+DIAGRAMS/FIGURES:
+- If a question is accompanied by a diagram, figure, graph, or image the
+  student must read or interpret to answer it, describe its relevant
+  content as part of this question's `text` - e.g. append
+  "[Diagram: a circuit with a 6 ohm resistor connected to a 12V battery]" -
+  so the question is understandable on its own without seeing the image
+  separately. Set `has_diagram` to true for that question.
+- When `has_diagram` is true, the bounding box (if provided) should span
+  both the question's own printed text AND the diagram/figure together,
+  not just the text - the diagram is part of what makes this a question.
+- Only set `has_diagram` for a figure the student must actually read or
+  interpret to answer - not decorative artwork or a logo.
+
 - Extract the full question text verbatim (OCR it faithfully), for exactly
   the span belonging to that specific question/sub-part - do not include the
   next question's text.
 - If marks are printed for a question, extract them as a number in the
   `marks` field, otherwise omit it.
 - Record the 1-indexed page number the question appears on.
-- If you can identify roughly where the question text sits on the page,
-  provide a bounding box in NORMALIZED coordinates (0-1 relative to page
-  width/height, origin top-left), tightly wrapping ONLY this question's own
-  text - stop before the next question begins, don't include surrounding
+- If you can identify roughly where the question sits on the page, provide
+  a bounding box in NORMALIZED coordinates (0-1 relative to page width/
+  height, origin top-left), tightly wrapping ONLY this question's own
+  content - its text, AND its diagram/figure if `has_diagram` is true -
+  stop before the next question begins, don't include surrounding
   whitespace or neighboring questions. If unsure, omit the bounding box
   rather than guessing.
 - Never invent questions that are not present in the document.
@@ -95,6 +109,10 @@ INPUT_SCHEMA = {
                         "description": "Printed question number exactly as shown, e.g. '11(a)'",
                     },
                     "text": {"type": "string"},
+                    "has_diagram": {
+                        "type": "boolean",
+                        "description": "True when a diagram/figure the student must read is part of this question.",
+                    },
                     "marks": {"type": "number"},
                     "page": {"type": "integer"},
                     "bounding_box": {
