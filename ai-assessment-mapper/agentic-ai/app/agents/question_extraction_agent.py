@@ -1,6 +1,5 @@
 """Extracts every question from a question paper document."""
 from collections import defaultdict
-import os
 import re
 
 from pydantic import ValidationError
@@ -97,29 +96,70 @@ def _dedupe_across_chunks(items: list[dict]) -> tuple[list[dict], list[str]]:
     return deduped, warnings
 
 
+# Verbs/wh-words that mark a clause as its own independent instruction or
+# question, as opposed to a bare descriptive value. Deliberately excludes
+# linking verbs ("is", "are", "has") - an MCQ stem is always a declarative
+# setup ending in one of those ("...has:", "...roots are:"), never an
+# instruction of its own.
+_INSTRUCTION_WORD_RE = re.compile(
+    r"\b(find|explain|name|define|state|describe|calculate|determine|prove|"
+    r"show|solve|differentiate|draw|list|give|write|derive|justify|compare|"
+    r"illustrate|identify|evaluate|construct|verify|distinguish|discuss|"
+    r"analyse|analyze|compute|classify|outline|summarise|summarize|what|"
+    r"how|why|when|where|which|who)\b",
+    re.IGNORECASE,
+)
+
+
+def _shared_word_prefix_len(word_lists: list[list[str]]) -> int:
+    """Number of leading words identical (case/punctuation-insensitive)
+    across every text - word-aligned, so it never splits a shared prefix
+    mid-word the way a character-level comparison could."""
+    count = 0
+    for words in zip(*word_lists):
+        if len({w.lower().strip(".,;:!?") for w in words}) != 1:
+            break
+        count += 1
+    return count
+
+
 def _looks_like_mcq_options(texts: list[str]) -> bool:
     """
-    Deterministic, conservative check for "these lettered items are answer
-    OPTIONS for one question, not separate sub-questions" - e.g. splitting
-    "The HCF of 96 and 404 is: (a) 4 (b) 8 (c) 12 (d) 16" into 4 items with
-    number "1(a)".."1(d)" is wrong; a student answers an MCQ by picking one
-    option, not by answering four questions.
+    Deterministic check for "these lettered items are answer OPTIONS for one
+    question, not separate sub-questions" - e.g. splitting either of these
+    into 4 items each is wrong, since a student answers an MCQ by picking
+    ONE option, not by answering four questions:
+        "The HCF of 96 and 404 is: (a) 4 (b) 8 (c) 12 (d) 16"
+        "...has: (a) No solution (b) Unique solution (c) Infinitely many
+         solutions (d) Exactly two solutions"
 
-    True only when every sibling shares almost its entire text (a common
-    stem) and differs only by a short, few-word tail value. Genuinely
-    distinct sub-questions that happen to share a template stem - e.g.
-    "Find the probability the sum is 7" vs "...is a prime number" - still
-    differ by more than a short value, so this correctly leaves them alone.
+    True when every sibling shares most of its text (a common stem) AND the
+    differing tail is a short descriptive value/phrase with no instruction
+    verb of its own. The instruction-verb check (not just a word-count cap)
+    is what makes this general enough for real MCQ phrasing instead of only
+    matching bare-number options: genuinely distinct sub-questions that
+    share a template stem - e.g. "Find the probability the sum is 7" vs
+    "...is a prime number" - are caught because the shared stem itself
+    contains "Find" (a real instruction repeated per sub-part), which an
+    MCQ stem never does.
     """
     if len(texts) < 2:
         return False
-    common_prefix = os.path.commonprefix(texts)
-    min_len = min(len(t) for t in texts)
-    if min_len == 0 or len(common_prefix) / min_len < 0.75:
+    word_lists = [t.split() for t in texts]
+    min_words = min(len(w) for w in word_lists)
+    prefix_len = _shared_word_prefix_len(word_lists)
+    if min_words == 0 or prefix_len == 0 or prefix_len / min_words < 0.5:
         return False
-    for text in texts:
-        suffix = text[len(common_prefix):].strip(" .,;:")
-        if not suffix or len(suffix.split()) > 2:
+
+    prefix_text = " ".join(word_lists[0][:prefix_len])
+    if _INSTRUCTION_WORD_RE.search(prefix_text):
+        return False
+
+    for words in word_lists:
+        suffix_words = words[prefix_len:]
+        if not suffix_words or len(suffix_words) > 8:
+            return False
+        if _INSTRUCTION_WORD_RE.search(" ".join(suffix_words)):
             return False
     return True
 
@@ -159,16 +199,18 @@ def _merge_mcq_option_siblings(items: list[dict]) -> tuple[list[dict], list[str]
         texts = [e.get("text", "") for e in entries]
 
         if len(entries) >= 2 and letters == expected_letters and _looks_like_mcq_options(texts):
-            common_prefix = os.path.commonprefix(texts).strip(" :-")
+            word_lists = [t.split() for t in texts]
+            prefix_len = _shared_word_prefix_len(word_lists)
+            stem = " ".join(word_lists[0][:prefix_len]).strip(" :-")
             options = [
-                f"({letter}) {text[len(os.path.commonprefix(texts)):].strip(' .,;:')}"
-                for letter, text in zip(letters, texts)
+                f"({letter}) {' '.join(words[prefix_len:]).strip(' .,;:')}"
+                for letter, words in zip(letters, word_lists)
             ]
             base = entries[0]
             result.append({
                 **base,
                 "number": parent,
-                "text": f"{common_prefix}: " + " ".join(options),
+                "text": f"{stem}: " + " ".join(options),
                 "marks": next((e.get("marks") for e in entries if e.get("marks") is not None), None),
             })
             warnings.append(
