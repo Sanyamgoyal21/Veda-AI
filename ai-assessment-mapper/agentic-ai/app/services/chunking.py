@@ -57,3 +57,27 @@ def chunk_pages(pages: list[PageImage], chunk_size: int = CHUNK_SIZE, overlap: i
         start += step
 
     return chunks
+
+
+def resolve_absolute_page(chunk: Chunk, reported_page: int | None) -> int | None:
+    """
+    The vision model is unreliable about whether a region's reported `page`
+    means the document's real page number or just the 1-indexed position of
+    that image within THIS chunk's request - confirmed as a real,
+    reproducible failure (not a hypothetical): a chunk covering absolute
+    pages [3, 4] came back reporting "page": 1 and "page": 2 for that
+    content, silently discarding every item once the page-ownership check
+    compared that against the WRONG chunk. Resolve using the chunk's own
+    known page list, which is always authoritative, rather than trusting
+    the model's number outright.
+
+    If `reported_page` is a valid 1-indexed position within this chunk,
+    translate it to that position's real absolute page number (a no-op
+    whenever they already coincide, e.g. a document's first chunk, where
+    position and absolute page are identical). A value outside that range
+    can't be a within-chunk position, so it's returned unchanged - already
+    absolute, or invalid in a way remapping can't fix anyway.
+    """
+    if not reported_page or not (1 <= reported_page <= len(chunk.pages)):
+        return reported_page
+    return chunk.pages[reported_page - 1].page
