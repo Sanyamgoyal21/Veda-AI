@@ -80,6 +80,38 @@ def test_looks_like_mcq_options_accepts_short_shared_stem_values():
     ])
 
 
+def test_mcq_options_with_phrase_values_are_also_merged():
+    # Real reported case: options are short PHRASES, not bare numbers - the
+    # original heuristic's word-count cap rejected these outright.
+    items = [
+        _item("3(a)", "The pair of linear equations x + 2y = 5 and 2x + 4y = 10 has No solution"),
+        _item("3(b)", "The pair of linear equations x + 2y = 5 and 2x + 4y = 10 has Unique solution"),
+        _item("3(c)", "The pair of linear equations x + 2y = 5 and 2x + 4y = 10 has Infinitely many solutions"),
+        _item("3(d)", "The pair of linear equations x + 2y = 5 and 2x + 4y = 10 has Exactly two solutions"),
+    ]
+    merged, warnings = _merge_mcq_option_siblings(items)
+
+    assert len(merged) == 1
+    assert merged[0]["number"] == "3"
+    assert "(a) No solution" in merged[0]["text"]
+    assert "(c) Infinitely many solutions" in merged[0]["text"]
+    assert len(warnings) == 1
+
+
+def test_mcq_options_describing_root_types_are_merged():
+    items = [
+        _item("4(a)", "If the discriminant of a quadratic equation is negative, the roots are Real and equal"),
+        _item("4(b)", "If the discriminant of a quadratic equation is negative, the roots are Real and distinct"),
+        _item("4(c)", "If the discriminant of a quadratic equation is negative, the roots are Not real"),
+        _item("4(d)", "If the discriminant of a quadratic equation is negative, the roots are Complex conjugate"),
+    ]
+    merged, warnings = _merge_mcq_option_siblings(items)
+
+    assert len(merged) == 1
+    assert merged[0]["number"] == "4"
+    assert len(warnings) == 1
+
+
 def test_mcq_merge_does_not_trigger_on_non_sequential_letters():
     # A stray "1(a)" and "1(c)" (no "1(b)") is not the standard MCQ shape -
     # too suspicious to merge confidently, so leave both alone.
