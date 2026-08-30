@@ -80,7 +80,21 @@ Question Extraction Agent          Answer Extraction Agent
   extracts every question (including sub-parts like `11(a)`, `26(ii)`, and
   nested `11(a)(i)`), preserving printed numbering and page. Long documents
   are split into **overlapping chunks** (see below) before extraction, then
-  deterministically deduplicated and merged back together.
+  deterministically deduplicated and merged back together. A deterministic
+  post-processing step also catches multiple-choice questions the model
+  mis-split into separate sub-questions - e.g. `"The HCF of 96 and 404 is:
+  (a) 4 (b) 8 (c) 12 (d) 16"` extracted as four questions `1(a)`..`1(d)`,
+  each needing its own answer, when a student actually answers an MCQ by
+  picking ONE option. Prompt instructions alone were tested and found
+  unreliable for this (confirmed live: the model still split it after being
+  told the exact rule); the real fix groups sequentially-lettered siblings
+  under one parent and merges them back into a single question only when
+  their *content* also looks like options - a shared stem differing by a
+  short 1-2 word tail value, with no instruction verb of its own - never on
+  label shape alone, since genuine sub-parts commonly use the same a/b/c/d
+  labels too (e.g. `"21(i) Find the probability the sum is 7"` /
+  `"21(ii) ...is a prime number"` are correctly left as two questions,
+  because their shared stem itself contains the instruction word "Find").
 - **answer_extraction_agent** — reads the rendered answer-sheet pages and
   extracts every handwritten answer with a confidence score and one or more
   normalized bounding-box regions. Also chunked for long documents, with a
@@ -114,9 +128,11 @@ Question Extraction Agent          Answer Extraction Agent
 All prompts live in `agentic-ai/app/prompts/`, one file per agent — agents
 never inline giant prompt strings. All AI provider calls go through
 `agentic-ai/app/services/vision_service.py`; swapping providers means editing
-that one file (this has been exercised in practice, not just designed for -
-the provider was swapped between Anthropic and OpenAI multiple times during
-development touching only that file, `requirements.txt`, and `.env`).
+that one file (this has been exercised in practice repeatedly, not just
+designed for - the provider has moved between Anthropic, OpenAI direct,
+Gemini's OpenAI-compatible endpoint, and OpenRouter during development,
+each time touching only that file, `requirements.txt` (when a new SDK was
+briefly tried), and `.env`).
 
 ## Chunked document processing
 
@@ -125,7 +141,7 @@ confusing two structurally-similar questions that are many pages apart (this
 was an observed real failure, not a hypothetical - a probability question's
 answer got attributed to an unrelated geometry question elsewhere in the
 same document). `app/services/chunking.py` splits any document longer than
-`EXTRACTION_CHUNK_SIZE` pages (default 6) into overlapping chunks
+`EXTRACTION_CHUNK_SIZE` pages (default 3) into overlapping chunks
 (`EXTRACTION_CHUNK_OVERLAP` pages of overlap, default 1) before extraction.
 Short documents are never chunked - one request, byte-for-byte the same
 behavior and cost as before.
@@ -139,6 +155,52 @@ shared overlap page(s). A deterministic merge step (not an AI call) then:
   overlapping regions), and concatenates non-duplicate text - so an answer
   spanning a chunk boundary is fully reconstructed from both chunks' partial
   views rather than either being duplicated or losing a page.
+
+**Page-number safety net.** For any chunk after the first, the vision model
+is unreliable about whether a region's `page` means the document's true page
+number or just that image's 1-indexed position within the chunk's own
+request - confirmed as a real, reproducible failure, not a hypothetical: a
+chunk covering true pages `[3, 4]` came back reporting `"page": 1` and
+`"page": 2`. Left unchecked, that made every item in the chunk look like it
+belonged to an already-processed EARLIER chunk once compared against the
+page-ownership map, and it was silently discarded - an entire page's worth
+of answers vanishing with no error or warning. `chunking.resolve_absolute_page()`
+translates a reported page against the chunk's own known page list
+(authoritative, unlike the model's number) before it's used for anything.
+This bug is invisible for any document short enough to need only one chunk,
+which is exactly why it went unnoticed until a document long enough to need
+a second chunk was tested against real files.
+
+## Diagram detection and handling
+
+Both extraction agents can flag `has_diagram: true` on a question or answer
+that includes a diagram/figure the model must read (question side) or that
+the student drew (answer side) - the vision model already sees the full
+page image, this just asks it to report on the diagram instead of silently
+describing only the surrounding text.
+
+This mattered for a real, traced bug: `refine_text_region` gives a precise
+bounding box by searching for the exact transcribed TEXT in the source
+PDF, but it has no concept of "a diagram sits outside that text's own
+bounds." Verified against an actual submitted answer sheet (Q8, "draw a
+labelled plant cell diagram"): the region shrank from the AI's own looser
+guess down to a 0.06-page-height sliver covering only the text sentence,
+completely cropping the diagram out of both the highlighted area and the
+image later cropped for grading. Fixed by unioning the refined text box
+with the AI's own original (wider) guess whenever `has_diagram` is true,
+rather than replacing it outright - confirmed against the same real file,
+the region now correctly spans the full diagram (checked against the PDF's
+own vector-drawing coordinates directly, not just visually). Text-only
+answers/questions are unaffected and still get the fully tight refined box.
+
+Grading needed no separate change for this: `grading_agent` already crops
+and sends the *actual answer image* (not the transcription) to the vision
+model specifically so it can judge diagrams, equations, and tables, not
+just prose - fixing the region is what makes that crop actually contain the
+diagram's pixels now. Whether the grading model judges a hand-drawn
+diagram's *content* accurately (right shapes, right labels) is architecturally
+supported but not yet empirically verified against a real graded example -
+see "Limitations & assumptions".
 
 ## Human-in-the-loop mapping correction
 
@@ -178,6 +240,31 @@ visibly labeled which one it is.
   inflated the unanswered count, and a resolved validation warning would
   otherwise have kept showing after the fix. Both are now covered by
   permanent regression tests in `backend/tests/mappingService.test.js`.
+
+## Human-in-the-loop grade correction
+
+The same principle applies to grading: an AI-generated score or feedback
+comment is a starting point, not a final word, and the teacher can always
+override either without re-running AI grading at all.
+
+- **`PATCH /api/assessment/:id/grade`** (`{ questionNumber, score?, feedback? }`
+  - either or both) applies the override with deterministic Node.js logic
+  (`mappingService.applyGradeCorrection`) - no AI call. The score is clamped
+  to `[0, question.max_score]` server-side, exactly like an AI-computed score
+  is, so a teacher override gets the same correctness guarantee rather than a
+  bare trust of client input. The assessment's total score/percentage is
+  recomputed afterward using the identical arithmetic the Python grading
+  agent itself uses, so a manual edit stays consistent with the rest of the
+  summary.
+- A corrected grade is marked `teacher_edited: true` and shows a **Teacher
+  Edited** badge in the UI next to the AI Feedback panel - the same visible-
+  provenance principle as mapping's `source: "ai" | "teacher"` field, so a
+  reviewer can always tell an AI score from a teacher-adjusted one.
+- In the UI, the **Edit Grade** control opens a small panel with a numeric
+  score field (bounded to the question's max marks) and a feedback textarea,
+  pre-filled with the AI's current values - saving updates the score badge,
+  feedback panel, and assessment total immediately via the same React state
+  the AI grading flow uses, no page reload.
 
 ## Highlighting strategy
 
@@ -281,7 +368,7 @@ AI_MODEL=openai/gpt-4o
 AI_BASE_URL=https://openrouter.ai/api/v1
 MAX_IMAGE_DIMENSION=1600
 PDF_RENDER_DPI=200
-EXTRACTION_CHUNK_SIZE=6      # pages per vision call before a document is split into chunks
+EXTRACTION_CHUNK_SIZE=3      # pages per vision call before a document is split into chunks
 EXTRACTION_CHUNK_OVERLAP=1   # pages shared between adjacent chunks
 ```
 
@@ -294,6 +381,8 @@ POST   /assessment/process            { questionFileId, answerFileId } -> full a
 GET    /assessment/:id                re-fetch a processed assessment
 GET    /assessment/:id/file/:type     stream original file ("question" | "answer")
 POST   /assessment/:id/grade          run optional AI grading (uses the stored answer file)
+PATCH  /assessment/:id/mapping        { questionNumber, answerId } -> deterministic manual mapping correction
+PATCH  /assessment/:id/grade          { questionNumber, score?, feedback? } -> deterministic manual grade correction
 DELETE /assessment/:id                delete an assessment and its temp files
 GET    /health                        backend + AI-service reachability
 ```
@@ -339,15 +428,52 @@ so it can be swapped again without touching any agent.
 
 ## Deployment
 
-- **Frontend** → Vercel (or any static host) — build with `npm run build`,
-  set `VITE_API_URL` to the deployed backend's public URL.
-- **Backend** → Render / Railway — set `AI_SERVICE_URL` to the deployed
-  agentic-ai URL and `CORS_ORIGIN` to the deployed frontend URL.
-- **Agentic AI** → Render / Railway (Python) — set `AI_API_KEY` / `AI_MODEL`.
+- **Frontend** → static host (Vercel, Render Static Site, etc.) — build with
+  `npm run build`, publish `dist/`, set `VITE_API_URL` to
+  `<deployed-backend-url>/api` (with the `/api` suffix - a real deploy hit a
+  silent `404 Route not found` from missing it). Vite bakes env vars in at
+  **build time**, so this must be set before the build runs, not after -
+  changing it later needs a fresh build, not just a redeploy of the same
+  artifact.
+- **Backend** → Render / Railway (Node) — set `AI_SERVICE_URL` to the
+  deployed agentic-ai URL and `CORS_ORIGIN` to the exact deployed frontend
+  origin (no trailing slash).
+- **Agentic AI** → Render / Railway (Python) — set `AI_API_KEY` / `AI_MODEL`
+  / `AI_BASE_URL`.
 
 Each service can be deployed and scaled independently; the only coupling is
 the two HTTP URLs (`AI_SERVICE_URL` on the backend, `VITE_API_URL` on the
 frontend).
+
+**Render-specific notes from an actual deployment**, since these cost real
+debugging time and aren't obvious from the platform's own docs:
+
+- If the repo lives in a subdirectory relative to the git root, Render's
+  **Root Directory** field needs the full path from the repo root (e.g.
+  `ai-assessment-mapper/agentic-ai`), not just the service folder name.
+- PyMuPDF's `requirements.txt` pin only ships prebuilt wheels for a bounded
+  Python version range. Render's default Python is often newer than that
+  range, which makes `pip install` fall back to compiling PyMuPDF's bundled
+  MuPDF C++ source from scratch - and that source fails to compile against
+  modern CPython headers. Fix: set the `PYTHON_VERSION` environment
+  variable explicitly (e.g. `3.11.9`) on the agentic-ai service. A
+  `runtime.txt` at the service root is the documented alternative, but it's
+  only reliably picked up when Render's Root Directory *is* the repo root -
+  when the service lives in a subdirectory, the environment variable is the
+  one that actually works.
+- Grading and long-document extraction can legitimately take several
+  minutes (see "Chunked document processing" - each chunk is its own
+  sequential vision call). Both the backend's axios timeout to the AI
+  service and the frontend's own request timeout are set to 10 minutes for
+  exactly this reason; shortening either will abort a request that's still
+  legitimately working, not stuck.
+- Render's free tier spins down a service after ~15 minutes of inactivity,
+  and the first request afterward pays a 30-90s cold-start penalty - it can
+  even return a `502` to that very first waking request while the container
+  finishes booting, which looks like a crash but isn't. A free external
+  cron ping (e.g. cron-job.org hitting each service's `/health` every 5
+  minutes) keeps both warm; a paid instance is the more robust fix if
+  uptime matters more than cost.
 
 ## Testing
 
@@ -356,22 +482,28 @@ frontend).
 cd agentic-ai
 venv\Scripts\activate
 pip install -r requirements.txt   # includes pytest
-pytest -v                          # 46 tests, ~6 seconds, no API key needed
+pytest -v                          # 73 tests, ~10 seconds, no API key needed
 python test-data/evaluate.py       # 21-case mapping-accuracy eval against known-expected fixtures
 
 # backend: Node's built-in test runner, no extra dependency
 cd backend
-npm test                           # 10 tests, ~0.3 seconds
+npm test                           # 18 tests, ~1 second
 ```
 
 The pytest suite (`agentic-ai/tests/`) covers normalization, deterministic
-ordering, bounding-box validation, chunking/merge logic, the full mapping
-priority ladder (with Level 4 mocked), and grading (rubric rescaling,
-criterion clamping, mismatch handling) - entirely offline and deterministic,
-so it's genuinely repeatable in CI without incurring API cost or flakiness
-from live model calls. It also carries explicit regression tests for real
-bugs found and fixed during development (e.g. `Q5 continued` normalizing
-differently from `Q5`; `7(4)` failing to fuzzy-match `7(a)`).
+ordering, bounding-box validation, chunking/merge logic (including the
+chunk-relative page-number safety net), the MCQ-vs-sub-part merge, the
+diagram-region union for both questions and answers, EXIF image-rotation
+correction, the full mapping priority ladder (with Level 4 mocked), and
+grading (rubric rescaling, criterion clamping, mismatch handling) -
+entirely offline and deterministic, so it's genuinely repeatable in CI
+without incurring API cost or flakiness from live model calls. It also
+carries explicit regression tests for real bugs found and fixed during
+development (e.g. `Q5 continued` normalizing differently from `Q5`; `7(4)`
+failing to fuzzy-match `7(a)`; a chunk covering true pages `[3, 4]`
+reporting `"page": 1`/`"page": 2` and silently losing every answer on the
+later page; a diagram getting cropped out of an answer's highlighted
+region).
 
 `test-data/evaluate.py` runs the real mapping/validation logic against 21
 hand-labeled fixtures (`test-data/case_*/`, generated by
@@ -387,16 +519,22 @@ and multi-page mapping accuracy - all measured, none fabricated. Last run:
 **100% on every metric across all 21 cases / 46 questions.**
 
 The backend's `npm test` (`backend/tests/`, Node's built-in `node:test` - no
-new dependency) covers the deterministic manual-correction logic
-(`applyManualCorrection`): reassignment correctly resets the previous
-holder, "No Answer" and unmatched-answer assignment, unknown-id error
-handling, and a real regression test using an actual PyMuPDF-generated PDF
-fixture for the xref-stream upload bug.
+new dependency) covers the deterministic manual-correction logic for both
+mappings (`applyManualCorrection`: reassignment correctly resets the
+previous holder, "No Answer" and unmatched-answer assignment, unknown-id
+error handling) and grades (`applyGradeCorrection`: score clamped to
+`[0, max_score]`, feedback-only vs score-only vs both, the assessment total
+recomputed deterministically afterward), plus a real regression test using
+an actual PyMuPDF-generated PDF fixture for the xref-stream upload bug.
 
-None of this tests the extraction agents themselves (that needs a real
-vision model and was verified manually against the live API during
-development), nor the interactive frontend flows beyond a live manual
-browser-driven pass performed during development (see "Known limitations").
+None of this tests what the vision model itself sees or interprets - a few
+tests mock its response to exercise the deterministic logic around it (page
+remapping, MCQ merging, diagram-region unioning), but real extraction
+quality was verified manually against the live API during development,
+including against actual submitted documents when a reported bug needed
+reproducing against real content rather than a synthetic stand-in.
+Interactive frontend flows are covered only by a live manual browser-driven
+pass performed during development (see "Limitations & assumptions").
 
 ## Limitations & assumptions
 
@@ -431,10 +569,12 @@ browser-driven pass performed during development (see "Known limitations").
   error, as any single ungrounded evaluation can. A dedicated symbolic
   arithmetic checker was considered but not built, since a reliable general
   version was out of scope for this project's size.
-- Manual reassignment of a low-confidence or unmatched mapping IS available
-  in the UI ("Change Answer" / "Assign to a question" — see "Human-in-the-loop
-  mapping correction" above); this limitation from an earlier round has been
-  addressed.
+- Grading can evaluate a diagram in principle (see "Diagram detection and
+  handling") - the crop sent to the model now correctly includes the
+  diagram's pixels - but how *accurately* the model judges a hand-drawn
+  diagram's content (right shapes, right labels) is not yet verified
+  against a real graded example, only assumed from it being a general-
+  purpose vision model. Treat diagram grading as unverified until checked.
 - Page preprocessing before sending images to the model handles DPI-
   controlled rendering and EXIF-based rotation correction (a photographed
   answer sheet held sideways/upside-down, per its EXIF orientation tag, is
