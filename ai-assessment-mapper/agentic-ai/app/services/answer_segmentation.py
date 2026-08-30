@@ -3,6 +3,7 @@ import logging
 from collections import defaultdict
 
 from app.schemas.answer_schema import Answer, AnswerRegion, AnswerSegment
+from app.services.pdf_service import refine_text_region
 from app.utils.normalization import normalize_question_number
 
 logger = logging.getLogger(__name__)
@@ -23,8 +24,17 @@ def _continuation_score(segment: AnswerSegment, has_active: bool) -> float:
     return min(1.0, score)
 
 
-def group_segments(segments: list[AnswerSegment], valid_numbers: set[str]) -> tuple[list[Answer], list[str]]:
-    """Group content only after marker validation against the question paper."""
+def group_segments(
+    segments: list[AnswerSegment], valid_numbers: set[str], file_path: str | None = None
+) -> tuple[list[Answer], list[str]]:
+    """
+    Group content only after marker validation against the question paper.
+
+    `file_path`: when set and the source is a typed PDF (not a photographed
+    scan), each part's AI-guessed region is replaced with an exact bounding
+    box found via real text search - vision models guess pixel coordinates
+    unreliably, especially with several similarly-worded answers on one page.
+    """
     ordered = sorted(segments, key=lambda s: (s.original_page, s.visual_order, s.bbox.y))
     unique: list[AnswerSegment] = []
     for segment in ordered:
@@ -85,6 +95,10 @@ def group_segments(segments: list[AnswerSegment], valid_numbers: set[str]) -> tu
         texts: list[str] = []
         for part in parts:
             region = part.bbox.model_copy(update={"page": part.original_page, "original_page": part.original_page})
+            if file_path and part.text.strip():
+                refined = refine_text_region(file_path, part.original_page, part.text)
+                if refined:
+                    region = region.model_copy(update={**refined, "original_page": part.original_page})
             # Overlapping-window duplicates have the same page and near-identical box.
             if not any(_iou(region, old) >= 0.4 for old in regions):
                 regions.append(region)
