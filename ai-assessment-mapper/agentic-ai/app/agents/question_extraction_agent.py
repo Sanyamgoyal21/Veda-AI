@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from app.prompts import question_prompt
 from app.schemas.question_schema import Question, QuestionBoundingBox, QuestionExtractionResult
 from app.services import vision_service
-from app.services.chunking import chunk_pages
+from app.services.chunking import chunk_pages, resolve_absolute_page
 from app.services.pdf_service import PageImage, refine_text_region
 from app.utils.normalization import extract_order_key, normalize_question_number
 
@@ -61,6 +61,16 @@ def _extract_raw_items(pages: list[PageImage]) -> tuple[list[dict], list[str]]:
         )
         warnings.extend(raw.get("warnings", []))
         for item in raw.get("questions", []):
+            # The model unreliably reports page numbers as absolute vs.
+            # chunk-relative (confirmed live against a real document) -
+            # resolve both the item's own page and its bounding box's page
+            # against this chunk's known pages before using either.
+            item = {**item, "page": resolve_absolute_page(chunk, item.get("page"))}
+            if item.get("bounding_box"):
+                item["bounding_box"] = {
+                    **item["bounding_box"],
+                    "page": resolve_absolute_page(chunk, item["bounding_box"].get("page")),
+                }
             items_with_chunk.append({**item, "_chunk_index": chunk_index})
 
     return items_with_chunk, warnings

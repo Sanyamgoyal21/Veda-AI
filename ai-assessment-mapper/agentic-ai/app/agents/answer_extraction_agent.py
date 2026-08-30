@@ -9,7 +9,7 @@ from app.schemas.answer_schema import Answer, AnswerExtractionResult, AnswerRegi
 from app.schemas.question_schema import Question
 from app.services.answer_segmentation import group_segments
 from app.services import vision_service
-from app.services.chunking import chunk_pages
+from app.services.chunking import chunk_pages, resolve_absolute_page
 from app.services.pdf_service import PageImage, refine_text_region
 from app.utils.normalization import normalize_question_number
 
@@ -44,6 +44,20 @@ def _extract_raw_items(pages: list[PageImage], question_index: list[dict] | None
         )
         warnings.extend(raw.get("warnings", []))
         for item in raw.get("segments", raw.get("answers", [])):
+            # The model unreliably reports region.page as absolute vs.
+            # chunk-relative (confirmed live) - resolve against this
+            # chunk's own known pages before it's used for anything,
+            # including the page-ownership check right below.
+            if "region" in item and item["region"]:
+                item = {**item, "region": {
+                    **item["region"],
+                    "page": resolve_absolute_page(chunk, item["region"].get("page")),
+                }}
+            elif item.get("regions"):
+                item = {**item, "regions": [
+                    {**r, "page": resolve_absolute_page(chunk, r.get("page"))} for r in item["regions"]
+                ]}
+
             raw_region = item.get("region") or (item.get("regions") or [{}])[0]
             page = raw_region.get("page")
             if page and page_owner.get(page) != chunk_index:
