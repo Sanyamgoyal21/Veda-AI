@@ -160,7 +160,13 @@ def _find_word_span(flat_tokens: list[tuple], query_tokens: list[str], max_skip:
         return None
 
     density, matched, start, end = best
-    if matched < max(3, int(m * 0.6)) or density < 0.35:
+    # A genuine match should track its query closely - occasional skips (a
+    # "Q1. Answer:" label, one garbled character) cost a little density, but
+    # a match needing to sprawl across roughly its own length again in extra
+    # page words (e.g. swallowing an entire NEIGHBORING answer's paragraph
+    # to pick up a few incidental word matches) is a false positive, not a
+    # real one, even though it can still hit a comfortable raw match count.
+    if matched < max(3, int(m * 0.6)) or density < 0.6:
         return None
     return start, end
 
