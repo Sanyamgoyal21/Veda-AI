@@ -190,7 +190,7 @@ def run(pages: list[PageImage], file_path: str | None = None,
                     has_handwriting=item.get("has_handwriting", True)))
             except ValidationError as exc:
                 extraction_warnings.append(f"Skipped malformed answer segment: {exc}")
-        answers, grouping_warnings = group_segments(segments, set(valid_numbers))
+        answers, grouping_warnings = group_segments(segments, set(valid_numbers), file_path)
         return AnswerExtractionResult(answers=answers, page_count=len(pages),
                                       warnings=extraction_warnings + grouping_warnings)
 
