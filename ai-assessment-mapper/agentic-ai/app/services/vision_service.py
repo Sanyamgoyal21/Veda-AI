@@ -6,10 +6,11 @@ Swapping providers means editing this file only. The provider is selected via
 AI_API_KEY / AI_MODEL / AI_BASE_URL environment variables and is never
 exposed to callers outside this service, let alone to the frontend.
 
-Currently backed by OpenAI's Chat Completions API (vision + forced
-function-calling for structured output). AI_BASE_URL is an optional override
-left in place from a prior Gemini trial (its OpenAI-compatible endpoint) -
-when unset, the `openai` SDK talks to OpenAI's own endpoint as normal.
+Currently backed by OpenRouter's OpenAI-compatible endpoint (vision + forced
+function-calling for structured output) - the `openai` SDK is kept as the
+client with `base_url` pointed at OpenRouter, so no new dependency or
+calling-code change was needed to switch providers. Model ids on OpenRouter
+are vendor-prefixed (e.g. "openai/gpt-4o", "anthropic/claude-3.5-sonnet").
 """
 import json
 import os
@@ -20,8 +21,8 @@ from app.services.image_service import image_to_base64, resize_for_vision
 from app.services.pdf_service import PageImage
 
 AI_API_KEY = os.getenv("AI_API_KEY", "")
-AI_MODEL = os.getenv("AI_MODEL", "gpt-4o")
-AI_BASE_URL = os.getenv("AI_BASE_URL") or None
+AI_MODEL = os.getenv("AI_MODEL", "openai/gpt-4o")
+AI_BASE_URL = os.getenv("AI_BASE_URL", "https://openrouter.ai/api/v1")
 
 _client: openai.OpenAI | None = None
 

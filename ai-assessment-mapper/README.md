@@ -27,7 +27,7 @@ Node.js / Express  (API gateway, uploads, temp storage, orchestration)
 Agentic AI (Python, FastAPI)  (agent pipeline)
         │
         ▼
-Vision AI model (OpenAI gpt-4o, vision + forced function-calling)
+Vision AI model (OpenRouter openai/gpt-4o, vision + forced function-calling)
 ```
 
 - **frontend/** — React + JavaScript only (no TypeScript). Upload UI,
@@ -276,8 +276,9 @@ UPLOAD_TTL_HOURS=6
 **agentic-ai/.env**
 ```
 PORT=8000
-AI_API_KEY=            # never exposed to the frontend or backend logs
-AI_MODEL=gpt-4o
+AI_API_KEY=            # never exposed to the frontend or backend logs (OpenRouter key - https://openrouter.ai/keys)
+AI_MODEL=openai/gpt-4o
+AI_BASE_URL=https://openrouter.ai/api/v1
 MAX_IMAGE_DIMENSION=1600
 PDF_RENDER_DPI=200
 EXTRACTION_CHUNK_SIZE=6      # pages per vision call before a document is split into chunks
@@ -312,11 +313,13 @@ transcription alone loses diagrams, equations, and tables.
 
 ## AI model used
 
-OpenAI `gpt-4o` (vision-capable, forced function-calling for structured JSON
-output on extraction/mapping/rubric/grading calls) via the official `openai`
-Python SDK, called with `temperature=0` throughout for reproducibility. The
-model id is configurable via `AI_MODEL`, and an optional `AI_BASE_URL` can
-point the same SDK at any other OpenAI-compatible endpoint (e.g. Gemini's)
+`openai/gpt-4o` (vision-capable, forced function-calling for structured JSON
+output on extraction/mapping/rubric/grading calls) via OpenRouter's
+OpenAI-compatible endpoint, accessed through the official `openai` Python
+SDK (`base_url` pointed at OpenRouter - no separate SDK needed), called with
+`temperature=0` throughout for reproducibility. The model id is configurable
+via `AI_MODEL` (any OpenRouter-hosted vendor/model id) and `AI_BASE_URL` can
+point the same SDK at a different OpenAI-compatible endpoint entirely
 without a code change. The provider is fully isolated in `vision_service.py`,
 so it can be swapped again without touching any agent.
 
