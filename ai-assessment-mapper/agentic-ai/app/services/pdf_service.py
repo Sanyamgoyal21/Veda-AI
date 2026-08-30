@@ -121,7 +121,7 @@ def _find_word_span(flat_tokens: list[tuple], query_tokens: list[str], max_skip:
         return None
 
     anchors = [i for i in range(n) if flat_tokens[i][0] == query_tokens[0]]
-    best = None  # (matched_count, start, end)
+    best = None  # (density, matched_count, start, end)
 
     for anchor in anchors:
         pos = anchor
@@ -143,14 +143,24 @@ def _find_word_span(flat_tokens: list[tuple], query_tokens: list[str], max_skip:
             if not found:
                 qi += 1  # tolerate an unmatched query token and keep going
 
-        if best is None or matched > best[0]:
-            best = (matched, anchor, last_matched_pos)
+        # Ranking by raw matched-count alone lets a loose, sprawling match
+        # (e.g. one that wanders into a NEIGHBORING answer's text on a page
+        # with several similar short answers sharing common vocabulary)
+        # outscore the true, tightly-packed location just by covering more
+        # page words. Density - matched tokens per word of span covered -
+        # favors the tight, correct match instead, with matched count only
+        # as a tiebreaker between similarly-dense candidates.
+        span_length = last_matched_pos - anchor + 1
+        density = matched / span_length if span_length else 0.0
+        candidate = (density, matched, anchor, last_matched_pos)
+        if best is None or candidate[:2] > best[:2]:
+            best = candidate
 
     if best is None:
         return None
 
-    matched, start, end = best
-    if matched < max(3, int(m * 0.6)):
+    density, matched, start, end = best
+    if matched < max(3, int(m * 0.6)) or density < 0.35:
         return None
     return start, end
 
