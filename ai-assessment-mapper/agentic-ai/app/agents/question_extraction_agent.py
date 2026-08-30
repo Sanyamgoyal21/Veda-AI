@@ -1,5 +1,6 @@
 """Extracts every question from a question paper document."""
 from collections import defaultdict
+import os
 import re
 
 from pydantic import ValidationError
@@ -12,6 +13,7 @@ from app.services.pdf_service import PageImage, refine_text_region
 from app.utils.normalization import extract_order_key, normalize_question_number
 
 _SUBPART_RE = re.compile(r"(?<!\w)\(([a-z]|i{1,4}|iv|v|vi{0,3}|ix|x)\)\s*", re.IGNORECASE)
+_SINGLE_LETTER_PARENT_RE = re.compile(r"^(\d+)\(([a-z])\)$")
 
 
 def _split_bundled_subparts(item: dict) -> list[dict]:
@@ -95,15 +97,100 @@ def _dedupe_across_chunks(items: list[dict]) -> tuple[list[dict], list[str]]:
     return deduped, warnings
 
 
+def _looks_like_mcq_options(texts: list[str]) -> bool:
+    """
+    Deterministic, conservative check for "these lettered items are answer
+    OPTIONS for one question, not separate sub-questions" - e.g. splitting
+    "The HCF of 96 and 404 is: (a) 4 (b) 8 (c) 12 (d) 16" into 4 items with
+    number "1(a)".."1(d)" is wrong; a student answers an MCQ by picking one
+    option, not by answering four questions.
+
+    True only when every sibling shares almost its entire text (a common
+    stem) and differs only by a short, few-word tail value. Genuinely
+    distinct sub-questions that happen to share a template stem - e.g.
+    "Find the probability the sum is 7" vs "...is a prime number" - still
+    differ by more than a short value, so this correctly leaves them alone.
+    """
+    if len(texts) < 2:
+        return False
+    common_prefix = os.path.commonprefix(texts)
+    min_len = min(len(t) for t in texts)
+    if min_len == 0 or len(common_prefix) / min_len < 0.75:
+        return False
+    for text in texts:
+        suffix = text[len(common_prefix):].strip(" .,;:")
+        if not suffix or len(suffix.split()) > 2:
+            return False
+    return True
+
+
+def _merge_mcq_option_siblings(items: list[dict]) -> tuple[list[dict], list[str]]:
+    """
+    Only ever merges a run of items whose numbers are the SAME parent with
+    single-letter sub-parts labeled sequentially from 'a' (the standard MCQ/
+    exam sub-part convention) - never touches roman-numeral labels like
+    "(i)"/"(ii)" (which don't match the single-letter parent pattern at all,
+    except the rare case a roman numeral IS a single letter like "(i)"
+    itself; even then, a lone unmatched sibling never reaches the length>=2
+    check below). Merging additionally requires the content itself to look
+    like options (see _looks_like_mcq_options) - the label shape alone is
+    never sufficient, since genuine sub-parts commonly use the same a/b/c/d
+    labeling too.
+    """
+    groups: dict[str, list[dict]] = defaultdict(list)
+    others: list[dict] = []
+    for item in items:
+        match = _SINGLE_LETTER_PARENT_RE.match(normalize_question_number(item.get("number", "")))
+        if match:
+            groups[match.group(1)].append(item)
+        else:
+            others.append(item)
+
+    warnings: list[str] = []
+    result: list[dict] = list(others)
+
+    for parent, entries in groups.items():
+        entries.sort(key=lambda e: normalize_question_number(e.get("number", "")))
+        letters = [
+            _SINGLE_LETTER_PARENT_RE.match(normalize_question_number(e["number"])).group(2)
+            for e in entries
+        ]
+        expected_letters = [chr(ord("a") + i) for i in range(len(entries))]
+        texts = [e.get("text", "") for e in entries]
+
+        if len(entries) >= 2 and letters == expected_letters and _looks_like_mcq_options(texts):
+            common_prefix = os.path.commonprefix(texts).strip(" :-")
+            options = [
+                f"({letter}) {text[len(os.path.commonprefix(texts)):].strip(' .,;:')}"
+                for letter, text in zip(letters, texts)
+            ]
+            base = entries[0]
+            result.append({
+                **base,
+                "number": parent,
+                "text": f"{common_prefix}: " + " ".join(options),
+                "marks": next((e.get("marks") for e in entries if e.get("marks") is not None), None),
+            })
+            warnings.append(
+                f"Question '{parent}' was split into {len(entries)} lettered items that were "
+                "actually multiple-choice options, not separate sub-parts; merged back into one question."
+            )
+        else:
+            result.extend(entries)
+
+    return result, warnings
+
+
 def run(pages: list[PageImage], file_path: str | None = None) -> QuestionExtractionResult:
     raw_items, extraction_warnings = _extract_raw_items(pages)
     expanded_items = [part for item in raw_items for part in _split_bundled_subparts(item)]
     deduped_items, dedupe_warnings = _dedupe_across_chunks(expanded_items)
-    warnings: list[str] = extraction_warnings + dedupe_warnings
+    merged_items, mcq_warnings = _merge_mcq_option_siblings(deduped_items)
+    warnings: list[str] = extraction_warnings + dedupe_warnings + mcq_warnings
 
     questions: list[Question] = []
 
-    for item in deduped_items:
+    for item in merged_items:
         bbox = None
         raw_bbox = item.get("bounding_box")
         if file_path and item.get("text"):

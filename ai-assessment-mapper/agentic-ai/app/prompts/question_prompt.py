@@ -30,6 +30,36 @@ SUB-PARTS - read this carefully, it is the most common source of errors:
   keep a bare parent entry if it asks something itself, separately from and
   in addition to its lettered sub-parts.
 
+MULTIPLE-CHOICE QUESTIONS - do not confuse answer OPTIONS with sub-parts:
+- A lettered/bracketed list is NOT automatically a set of sub-parts. When a
+  single question stem is followed by several short (a)/(b)/(c)/(d) items
+  that are alternative ANSWERS to pick from - not separate instructions each
+  requiring their own independent response - the whole thing is ONE
+  multiple-choice question. Example:
+      "The HCF of 96 and 404 is: (a) 4 (b) 8 (c) 12 (d) 16"
+  is ONE question numbered "1" (or whatever its printed number is), with all
+  four options kept together in its `text`. It is NOT four questions
+  "1(a)".."1(d)" each needing its own separate answer - a student answers an
+  MCQ by selecting ONE option, not by answering four questions.
+- Tell the two apart by what each lettered/numbered item actually IS, not
+  just its label shape. Compare:
+      genuine sub-part - "21(i) Two dice are thrown together. Find the
+      probability that the sum is 7. 21(ii) Two dice are thrown together.
+      Find the probability that the sum is a prime number." - each is a
+      complete, independent question demanding its own distinct working and
+      answer (different target outcome), even though both share the same
+      setup. These stay as separate entries "21(i)" and "21(ii)".
+      MCQ option - "(a) 4 (b) 8 (c) 12 (d) 16" - each is a short standalone
+      value with no question of its own; all of them are candidate answers
+      to the ONE question stem printed just before them. This stays as ONE
+      entry, not four.
+  A strong practical signal: MCQ options are short values/phrases with no
+  verb or instruction of their own; sub-parts are themselves full questions
+  or instructions that ask for independent work.
+- If in doubt, ask: "does answering (b) require its own distinct working,
+  separate from (a)?" - yes means sub-parts (like 21(i)/21(ii) above); "no,
+  they're just alternative values for the same one question" means MCQ.
+
 - Extract the full question text verbatim (OCR it faithfully), for exactly
   the span belonging to that specific question/sub-part - do not include the
   next question's text.
