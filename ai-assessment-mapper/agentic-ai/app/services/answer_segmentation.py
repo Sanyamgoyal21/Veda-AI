@@ -108,8 +108,24 @@ def group_segments(
                     # included) so the precision gain never costs the
                     # diagram; text-only answers still get the tight box.
                     region = _union_regions(region, refined_region) if part.has_diagram else refined_region
-            # Overlapping-window duplicates have the same page and near-identical box.
-            if not any(_iou(region, old) >= 0.4 for old in regions):
+            # Overlapping-window duplicates have the same page and near-
+            # identical box - but IoU alone misses the case where one region
+            # is almost entirely NESTED inside a much larger other one (e.g.
+            # heights 0.8 and 0.3 from the same y-start: IoU lands at 0.375,
+            # just under the old 0.4 cutoff, even though the smaller region
+            # is 100% contained in the larger one). That's the exact shape
+            # a fallback "whole block" guess and a second, tighter guess for
+            # the same content tend to take, and left undeduped it renders
+            # as confusing stacked/nested boxes for one answer. Merge into
+            # the union instead of just dropping the new one, so overlap
+            # never means losing content either.
+            merged_into_existing = False
+            for i, old in enumerate(regions):
+                if _regions_overlap(region, old):
+                    regions[i] = _union_regions(region, old)
+                    merged_into_existing = True
+                    break
+            if not merged_into_existing:
                 regions.append(region)
             text = part.text.strip()
             if text and not any(text in old or old in text for old in texts):
@@ -132,6 +148,22 @@ def _iou(a: AnswerRegion, b: AnswerRegion) -> float:
         return 0.0
     intersection = (x1 - x0) * (y1 - y0)
     return intersection / (a.area + b.area - intersection)
+
+
+def _regions_overlap(a: AnswerRegion, b: AnswerRegion) -> bool:
+    """True for near-duplicate boxes (high IoU) OR when one region is
+    almost entirely nested inside the other - IoU alone under-detects
+    containment when the two boxes are very different sizes."""
+    if a.page != b.page:
+        return False
+    x0, y0 = max(a.x, b.x), max(a.y, b.y)
+    x1, y1 = min(a.x + a.width, b.x + b.width), min(a.y + a.height, b.y + b.height)
+    if x1 <= x0 or y1 <= y0:
+        return False
+    intersection = (x1 - x0) * (y1 - y0)
+    iou = intersection / (a.area + b.area - intersection)
+    containment = intersection / min(a.area, b.area)
+    return iou >= 0.4 or containment >= 0.7
 
 
 def _union_regions(a: AnswerRegion, b: AnswerRegion) -> AnswerRegion:

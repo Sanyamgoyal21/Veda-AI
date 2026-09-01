@@ -44,6 +44,35 @@ def test_two_answers_on_one_page_remain_separate():
     assert answers[0].regions[0].y < answers[1].regions[0].y
 
 
+def test_nested_regions_on_same_page_are_merged_not_stacked():
+    """
+    Reproduces a real bug found against an actual scanned answer sheet: two
+    segments for the same answer on one page produced regions (x=.1,y=.1,
+    w=.8,h=.8) and (x=.1,y=.1,w=.8,h=.3) - the second entirely NESTED
+    inside the first. Their IoU is only 0.375 (just under the old 0.4
+    dedup cutoff) even though containment is 100%, so both were kept as
+    separate regions - rendered as confusing stacked/nested boxes for one
+    answer. They must merge into a single region instead.
+    """
+    big = AnswerRegion(page=1, original_page=1, x=0.1, y=0.1, width=0.8, height=0.8)
+    small = AnswerRegion(page=1, original_page=1, x=0.1, y=0.1, width=0.8, height=0.3)
+
+    def seg(order, bbox):
+        return AnswerSegment(
+            id=f"s-{order}", page=1, original_page=1, text=f"part {order}",
+            detected_question_number="1" if order == 0 else None,
+            question_number_confidence=0.95 if order == 0 else 0,
+            bbox=bbox, segment_confidence=0.9,
+            segment_type="ANSWER_START" if order == 0 else "CONTINUATION",
+            continuation_likely=order != 0, continuation_confidence=0.9, visual_order=order,
+        )
+
+    answers, _ = group_segments([seg(0, big), seg(1, small)], {"1"})
+    assert len(answers) == 1
+    assert len(answers[0].regions) == 1, "nested regions must merge into one, not stack"
+    assert answers[0].regions[0].height == 0.8  # the union equals the larger of the two
+
+
 def test_diagram_answer_region_is_not_shrunk_to_text_only(tmp_path):
     """
     Reproduces a real bug: refine_text_region gives a precise box for the
